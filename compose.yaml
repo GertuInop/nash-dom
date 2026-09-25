@@ -1,0 +1,43 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: nash-dom-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nash_dom}
+      MYSQL_USER: ${MYSQL_USER:-nash_dom}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-nash_dom}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  bot:
+    build: .
+    container_name: nash-dom-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-nash_dom}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-nash_dom}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nash_dom}
+      NODE_EXTRA_CA_CERTS: /app/certs/russian_trusted_ca_bundle.pem
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
