@@ -6,11 +6,22 @@
 {$DOMAIN:localhost} {
 	encode gzip
 
-	# Прокси на Node (бот + API + статика miniapp)
-	reverse_proxy bot:3080
+	# MAX → webhook бота
+	handle /bot* {
+		reverse_proxy bot:3080
+	}
+
+	# Фронт → REST API
+	handle /server* {
+		reverse_proxy bot:3080
+	}
+
+	# Мини-приложение (React) на корне
+	handle {
+		reverse_proxy web:80
+	}
 
 	header {
-		# Базовая защита
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server

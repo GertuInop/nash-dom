@@ -4,12 +4,11 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
-    # gzip для статики
     gzip on;
     gzip_types text/css application/javascript application/json image/svg+xml;
 
-    # API бота (отдельный контейнер / хост)
-    location /api/ {
+    # API бота (когда web запущен отдельно, без Caddy)
+    location /server/ {
         proxy_pass ${API_UPSTREAM};
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -19,12 +18,10 @@ server {
         proxy_read_timeout 60s;
     }
 
-    # SPA: все остальные пути → index.html
     location / {
         try_files $uri $uri/ /index.html;
     }
 
-    # Кэш статики Vite
     location /assets/ {
         expires 7d;
         add_header Cache-Control "public, immutable";

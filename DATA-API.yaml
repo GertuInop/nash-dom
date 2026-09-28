@@ -1,0 +1,153 @@
+# Конфигурация обязательных проверок собственного API (DATA-API)
+# Перед сдачей замените базовый_адрес_api на ваш публичный HTTPS-домен.
+
+версия_конфигурации: "1.0"
+
+название_или_id_команды: "nash-dom"
+
+# Единый базовый HTTPS-адрес; пути проверок относительные
+базовый_адрес_api: "http://hackatonmax342.ru/"
+
+обязательные_проверки:
+  - http_метод: GET
+    относительный_путь: /server/status
+    параметры_запроса:
+      query: {}
+      path: {}
+      headers: {}
+      body: null
+    роль_пользователя: anonymous
+    ожидаемые_коды_статуса: [200]
+    ожидаемый_формат_ответа:
+      content_type: application/json
+      обязательные_поля: [ok, service, status]
+      структура:
+        ok: boolean
+        service: string
+        status: string
+        time: string
+
+  - http_метод: GET
+    относительный_путь: /server/health
+    параметры_запроса:
+      query: {}
+      path: {}
+      headers: {}
+      body: null
+    роль_пользователя: anonymous
+    ожидаемые_коды_статуса: [200]
+    ожидаемый_формат_ответа:
+      content_type: application/json
+      обязательные_поля: [ok, service]
+      структура:
+        ok: boolean
+        service: string
+
+  - http_метод: POST
+    относительный_путь: /server/auth/login
+    параметры_запроса:
+      query: {}
+      path: {}
+      headers:
+        Content-Type: application/json
+      body:
+        phone: "+79001234567"
+        password: "1234"
+    роль_пользователя: resident
+    ожидаемые_коды_статуса: [200]
+    ожидаемый_формат_ответа:
+      content_type: application/json
+      обязательные_поля: [token, user]
+      структура:
+        token: string
+        user: object
+        houses: array
+        chats: array
+        topics: array
+        tickets: array
+        works: array
+
+  - http_метод: POST
+    относительный_путь: /server/auth/login
+    параметры_запроса:
+      query: {}
+      path: {}
+      headers:
+        Content-Type: application/json
+      body:
+        phone: "+79001234561"
+        password: "1234"
+    роль_пользователя: uk
+    ожидаемые_коды_статуса: [200]
+    ожидаемый_формат_ответа:
+      content_type: application/json
+      обязательные_поля: [token, user]
+      структура:
+        token: string
+        user: object
+
+  - http_метод: GET
+    относительный_путь: /server/me
+    параметры_запроса:
+      query: {}
+      path: {}
+      headers:
+        Authorization: "Bearer <token_from_login_resident>"
+      body: null
+    роль_пользователя: resident
+    ожидаемые_коды_статуса: [200]
+    ожидаемый_формат_ответа:
+      content_type: application/json
+      обязательные_поля: [user]
+      структура:
+        user: object
+        houses: array
+        chats: array
+        tickets: array
+
+  - http_метод: GET
+    относительный_путь: /server/houses
+    параметры_запроса:
+      query: {}
+      path: {}
+      headers:
+        Authorization: "Bearer <token_from_login_resident>"
+      body: null
+    роль_пользователя: resident
+    ожидаемые_коды_статуса: [200]
+    ожидаемый_формат_ответа:
+      content_type: application/json
+      обязательные_поля: [houses]
+      структура:
+        houses: array
+
+  - http_метод: GET
+    относительный_путь: /server/tickets
+    параметры_запроса:
+      query: {}
+      path: {}
+      headers:
+        Authorization: "Bearer <token_from_login_uk>"
+      body: null
+    роль_пользователя: uk
+    ожидаемые_коды_статуса: [200]
+    ожидаемый_формат_ответа:
+      content_type: application/json
+      обязательные_поля: [tickets]
+      структура:
+        tickets: array
+
+  - http_метод: GET
+    относительный_путь: /server/openapi.yaml
+    параметры_запроса:
+      query: {}
+      path: {}
+      headers: {}
+      body: null
+    роль_пользователя: anonymous
+    ожидаемые_коды_статуса: [200]
+    ожидаемый_формат_ответа:
+      content_type: text/yaml
+      обязательные_поля: []
+      структура:
+        openapi: "3.0.3"

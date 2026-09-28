@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from '../config.js';
@@ -36,7 +37,7 @@ import {
 import { updateUser } from '../db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const miniappDir = path.resolve(__dirname, '../../miniapp');
+const docsDir = path.resolve(__dirname, '../../docs');
 
 function moderateMessage(text) {
   const t = String(text || '').trim();
@@ -80,18 +81,43 @@ function asyncHandler(fn) {
   };
 }
 
-export function createApiApp() {
-  const app = express();
-  app.use(cors({ origin: true, credentials: true }));
-  app.use(express.json({ limit: '1mb' }));
-  app.use(express.static(miniappDir, { index: 'index.html', extensions: ['html'] }));
+function createServerRouter() {
+  const api = express.Router();
+  api.use(express.json({ limit: '1mb' }));
 
-  app.get('/api/health', (_req, res) => {
+  api.get('/health', (_req, res) => {
     res.json({ ok: true, service: 'nash-dom-api' });
   });
 
-  app.post(
-    '/api/auth/max',
+  api.get('/status', (_req, res) => {
+    res.json({
+      ok: true,
+      service: 'nash-dom-api',
+      status: 'up',
+      time: new Date().toISOString(),
+    });
+  });
+
+  api.get('/openapi.yaml', (_req, res) => {
+    const file = path.join(docsDir, 'openapi.yaml');
+    if (!fs.existsSync(file)) {
+      res.status(404).json({ error: 'openapi.yaml не найден' });
+      return;
+    }
+    res.type('text/yaml').send(fs.readFileSync(file, 'utf8'));
+  });
+
+  api.get('/DATA-API.yaml', (_req, res) => {
+    const file = path.join(docsDir, 'DATA-API.yaml');
+    if (!fs.existsSync(file)) {
+      res.status(404).json({ error: 'DATA-API.yaml не найден' });
+      return;
+    }
+    res.type('text/yaml').send(fs.readFileSync(file, 'utf8'));
+  });
+
+  api.post(
+    '/auth/max',
     asyncHandler(async (req, res) => {
       const initData = String(req.body?.initData || '');
       const parsed = validateInitData(initData);
@@ -108,8 +134,8 @@ export function createApiApp() {
     }),
   );
 
-  app.post(
-    '/api/auth/max/phone',
+  api.post(
+    '/auth/max/phone',
     requireAuth,
     asyncHandler(async (req, res) => {
       const { phone, authDate, hash } = req.body || {};
@@ -130,8 +156,8 @@ export function createApiApp() {
     }),
   );
 
-  app.post(
-    '/api/auth/register',
+  api.post(
+    '/auth/register',
     asyncHandler(async (req, res) => {
       const { name, phone, password, role, ukName } = req.body || {};
       if (!phone || !password || String(password).length < 4) {
@@ -180,8 +206,8 @@ export function createApiApp() {
     }),
   );
 
-  app.post(
-    '/api/auth/login',
+  api.post(
+    '/auth/login',
     asyncHandler(async (req, res) => {
       const { phone, password } = req.body || {};
       if (!phone || !password) {
@@ -215,8 +241,8 @@ export function createApiApp() {
     }),
   );
 
-  app.post(
-    '/api/auth/logout',
+  api.post(
+    '/auth/logout',
     requireAuth,
     asyncHandler(async (req, res) => {
       await deleteSession(req.token);
@@ -224,24 +250,24 @@ export function createApiApp() {
     }),
   );
 
-  app.get(
-    '/api/me',
+  api.get(
+    '/me',
     requireAuth,
     asyncHandler(async (req, res) => {
       res.json(await bootstrapForUser(req.user));
     }),
   );
 
-  app.get(
-    '/api/houses',
+  api.get(
+    '/houses',
     requireAuth,
     asyncHandler(async (_req, res) => {
       res.json({ houses: await listHouses() });
     }),
   );
 
-  app.post(
-    '/api/me/house',
+  api.post(
+    '/me/house',
     requireAuth,
     asyncHandler(async (req, res) => {
       const houseId = req.body?.houseId;
@@ -254,8 +280,8 @@ export function createApiApp() {
     }),
   );
 
-  app.post(
-    '/api/me/address',
+  api.post(
+    '/me/address',
     requireAuth,
     asyncHandler(async (req, res) => {
       const { street, entrance, flat, skip } = req.body || {};
@@ -266,8 +292,8 @@ export function createApiApp() {
     }),
   );
 
-  app.get(
-    '/api/chats',
+  api.get(
+    '/chats',
     requireAuth,
     asyncHandler(async (req, res) => {
       if (!req.user.house_id) {
@@ -278,16 +304,16 @@ export function createApiApp() {
     }),
   );
 
-  app.get(
-    '/api/chats/:chatId/messages',
+  api.get(
+    '/chats/:chatId/messages',
     requireAuth,
     asyncHandler(async (req, res) => {
       res.json({ messages: await listMessages(req.params.chatId) });
     }),
   );
 
-  app.post(
-    '/api/chats/:chatId/messages',
+  api.post(
+    '/chats/:chatId/messages',
     requireAuth,
     asyncHandler(async (req, res) => {
       const text = String(req.body?.text || '').trim();
@@ -309,8 +335,8 @@ export function createApiApp() {
     }),
   );
 
-  app.get(
-    '/api/topics',
+  api.get(
+    '/topics',
     requireAuth,
     asyncHandler(async (req, res) => {
       if (!req.user.house_id) {
@@ -321,8 +347,8 @@ export function createApiApp() {
     }),
   );
 
-  app.post(
-    '/api/topics',
+  api.post(
+    '/topics',
     requireAuth,
     asyncHandler(async (req, res) => {
       const titleCheck = moderateMessage(req.body?.title);
@@ -342,16 +368,16 @@ export function createApiApp() {
     }),
   );
 
-  app.get(
-    '/api/tickets',
+  api.get(
+    '/tickets',
     requireAuth,
     asyncHandler(async (req, res) => {
       res.json({ tickets: await listTicketsForUser(req.user) });
     }),
   );
 
-  app.patch(
-    '/api/tickets/:id',
+  api.patch(
+    '/tickets/:id',
     requireAuth,
     asyncHandler(async (req, res) => {
       const ticket = await setTicketStatus(req.user, req.params.id, req.body?.status);
@@ -359,8 +385,8 @@ export function createApiApp() {
     }),
   );
 
-  app.get(
-    '/api/works',
+  api.get(
+    '/works',
     requireAuth,
     asyncHandler(async (req, res) => {
       const houseId = req.query.houseId || req.user.house_id;
@@ -372,8 +398,8 @@ export function createApiApp() {
     }),
   );
 
-  app.patch(
-    '/api/works/:id',
+  api.patch(
+    '/works/:id',
     requireAuth,
     asyncHandler(async (req, res) => {
       const work = await setWorkStatus(req.user, req.params.id, req.body?.status);
@@ -381,11 +407,28 @@ export function createApiApp() {
     }),
   );
 
-  app.get(/^(?!\/api).*/, (req, res, next) => {
-    res.sendFile(path.join(miniappDir, 'index.html'), (err) => {
-      if (err) next();
+  return api;
+}
+
+/**
+ * @param {{ webhookHandler?: (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void }} [options]
+ */
+export function createApiApp(options = {}) {
+  const app = express();
+  app.use(cors({ origin: true, credentials: true }));
+
+  // /bot — webhook MAX (сырое тело, без express.json)
+  if (options.webhookHandler) {
+    app.post('/bot', (req, res) => {
+      options.webhookHandler(req, res);
     });
+  }
+  app.get('/bot', (_req, res) => {
+    res.json({ ok: true, service: 'nash-dom-bot', mode: config.botMode });
   });
+
+  // /server — REST API для фронта
+  app.use('/server', createServerRouter());
 
   app.use((err, _req, res, _next) => {
     const status = err.status || 500;
@@ -396,13 +439,14 @@ export function createApiApp() {
   return app;
 }
 
-export function startApiServer() {
-  const app = createApiApp();
+export function startApiServer(options = {}) {
+  const app = createApiApp(options);
   const port = config.apiPort;
   return new Promise((resolve) => {
     const server = app.listen(port, () => {
-      console.log(`✅ HTTP API + мини-приложение на порту ${port}`);
-      console.log(`   Локально: http://127.0.0.1:${port}/  (для MAX нужен https URL в настройках бота)`);
+      console.log(`✅ HTTP на порту ${port}`);
+      console.log(`   Webhook MAX:  POST /bot`);
+      console.log(`   API фронта:   /server/*`);
       resolve(server);
     });
   });

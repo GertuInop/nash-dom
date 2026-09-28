@@ -6,8 +6,7 @@ services:
     ports:
       - "${WEB_PORT:-5173}:80"
     environment:
-      # Куда nginx проксирует /api
-      # Бот на том же хосте (Docker Desktop / Linux с host-gateway):
+      # Куда nginx проксирует /server (отдельный запуск без Caddy)
       API_UPSTREAM: ${API_UPSTREAM:-http://host.docker.internal:3080}
     extra_hosts:
       - "host.docker.internal:host-gateway"

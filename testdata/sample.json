@@ -1,0 +1,27 @@
+{
+  "houses_example": [
+    {
+      "city": "Набережные Челны",
+      "address": "пр. Мира, 1",
+      "uk_name": "УК Демо"
+    }
+  ],
+  "login_resident_request": {
+    "phone": "+79001234567",
+    "password": "1234"
+  },
+  "login_uk_request": {
+    "phone": "+79001234561",
+    "password": "1234"
+  },
+  "expected_status_response": {
+    "ok": true,
+    "service": "nash-dom-api",
+    "status": "up"
+  },
+  "topic_create_example": {
+    "category": "neighbors",
+    "title": "Субботник",
+    "description": "Собираемся в субботу у подъезда"
+  }
+}

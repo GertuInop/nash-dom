@@ -28,15 +28,24 @@
 | `mysql/init.sql` | Схема БД |
 | `certs/` | Сертификаты Минцифры для TLS к MAX API |
 | `caddy/Caddyfile` | Reverse proxy + автоматический HTTPS |
-| `miniapp/` | Веб-клиент / мини-приложение MAX |
+| `docs/` | OpenAPI и DATA-API для контейнера |
+| `../hackaton/` | React мини-приложение |
 
-Веб-клиент / мини-приложение (`miniapp/`: `index.html`, `app.css`, `app.js`) открывается по **HTTPS** через Caddy и пишет в ту же БД `nash_dom`. Вход из MAX — через Bridge `initData` и `POST /api/auth/max`.
+Мини-приложение — React в `../hackaton`. Данные в общей MySQL `nash_dom`. Вход из MAX — Bridge `initData` и `POST /server/auth/max`.
+
+Публичные пути (Caddy):
+
+| Путь | Назначение |
+|------|------------|
+| `/` | фронт (мини-приложение) |
+| `/server/*` | REST API для фронта |
+| `/bot` | webhook MAX |
 
 Роли: `resident`, `uk`, `admin`.
 
-Стек: **Node.js (JavaScript)**, **MySQL 8**, **Express**, **Caddy**, **Docker Compose**, библиотека `@maxhub/max-bot-api`.
+Стек: **Node.js**, **MySQL 8**, **Express**, **Caddy**, **Docker Compose**, `@maxhub/max-bot-api`, React (Vite).
 
-> MAX API (`platform-api2.max.ru`) использует сертификаты Минцифры. Они лежат в `certs/` и подключаются в Docker и через кастомный `fetch` бота.
+> MAX API (`platform-api2.max.ru`) — сертификаты Минцифры в `certs/`.
 
 ## Быстрый запуск (одна команда)
 
@@ -48,18 +57,18 @@ docker compose up --build -d
 
 ## HTTPS через Caddy
 
-Caddy слушает **80/443**, получает сертификат Let's Encrypt и проксирует на `bot:3080`.
+Caddy слушает **80/443** и разводит пути: `/` → `web`, `/server` и `/bot` → `bot`.
 
-1. Укажите в `.env`:
+1. В `.env`:
    - `DOMAIN=ваш-домен.ru`
    - `ACME_EMAIL=you@mail.ru`
    - `MINIAPP_URL=https://ваш-домен.ru/`
-2. DNS A/AAAA запись домена → IP сервера.
-3. Откройте порты **80** и **443** на фаерволе.
-4. `docker compose up --build -d`
-5. В кабинете MAX: Чат-боты → настройки → URL мини-приложения = `MINIAPP_URL`.
+   - `WEBHOOK_SECRET=...` (рекомендуется на проде)
+2. DNS A/AAAA → IP сервера, порты **80/443**.
+3. `docker compose up --build -d`
+4. В кабинете MAX: URL мини-приложения = `MINIAPP_URL` (`https://ваш-домен.ru/`).
 
-Локально без домена: `DOMAIN=localhost` — Caddy поднимет внутренний сертификат (браузер может предупредить о недоверенном CA; для MAX нужен публичный домен с валидным SSL).
+На публичном `DOMAIN` бот сам включает **webhook** (`POST /bot`). Локально (`localhost`) — long polling.
 
 ## Переменные окружения и порты
 
@@ -74,16 +83,17 @@ Caddy слушает **80/443**, получает сертификат Let's Enc
 | `MYSQL_PASSWORD` | Пароль БД | `nash_dom` |
 | `MYSQL_DATABASE` | Имя БД | `nash_dom` |
 | `MYSQL_ROOT_PASSWORD` | Root-пароль MySQL (Docker) | `rootpass` |
-| `API_PORT` | Порт HTTP API внутри Docker-сети | `3080` |
-| `DOMAIN` | Домен для Caddy / Let's Encrypt | `localhost` |
+| `API_PORT` | Порт HTTP внутри Docker-сети | `3080` |
+| `DOMAIN` | Домен для Caddy / Let's Encrypt / webhook | `localhost` |
 | `ACME_EMAIL` | Email для Let's Encrypt | `admin@example.com` |
-| `MINIAPP_URL` | HTTPS URL мини-приложения (кнопка `openApp`) | пусто |
+| `MINIAPP_URL` | HTTPS URL мини-приложения (кнопка `openApp`) | `https://$DOMAIN/` |
+| `BOT_MODE` | `auto` / `webhook` / `polling` | `auto` |
+| `WEBHOOK_SECRET` | Секрет заголовка `X-Max-Bot-Api-Secret` | пусто |
 
 Порты:
-- **80 / 443** — Caddy (HTTP→HTTPS и SSL)
-- **3306** — MySQL (проброшен на хост)
-
-Бот работает через long polling; наружу API и miniapp доступны только через Caddy.
+- **80 / 443** — Caddy
+- **3306** — MySQL
+- **3080** — прямой доступ к bot (опционально)
 
 ## Зависимости и интеграции
 
@@ -124,14 +134,16 @@ npm run start
 4. Роль «УК» → название → контакты → статус «ожидание одобрения».
 5. Админ видит заявки и может одобрить/отклонить; УК получает уведомление.
 
-Разделы заявок/аварий/парковки пока показывают заглушку «в разработке».
+Разделы заявок, статусов и рассылок работают в боте и в веб-кабинете (общая БД).
+
+Подробный чеклист сдачи, OpenAPI и DATA-API — в корневом [README.md](../README.md).
 
 ## Ограничения
 
-- Бизнес-функции заявок, аварий, парковки и рассылок ещё не реализованы (только каркас меню).
-- Ссылка согласия (`CONSENT_URL`) пока заглушка — замените на свой PDF.
-- Сессии онбординга хранятся в MySQL; при смене роли используйте `/start` после очистки записи пользователя в БД.
-- Контейнеризация не заменяет требование рабочей версии бота, доступной в мессенджере MAX.
+- Без валидного `BOT_TOKEN` и доступа к `platform-api2.max.ru` бот в MAX не работает; HTTP API и веб-клиент доступны локально.
+- `CONSENT_URL` по умолчанию — заглушка.
+- На `localhost` — long polling; на публичном `DOMAIN` — webhook `POST /bot`.
+- Контейнеризация не заменяет рабочую версию бота/мини-приложения в MAX.
 - Без сертификатов Минцифры (`certs/`) TLS к MAX API падает с `UNABLE_TO_GET_ISSUER_CERT_LOCALLY`.
 
 ## Остановка и перезапуск

@@ -1,3 +1,8 @@
+# Все локальные компоненты: MySQL + bot + web + Caddy
+# Запуск из корня: docker compose up --build -d
+
+name: nash-dom
+
 services:
   mysql:
     image: mysql:8.4
@@ -12,7 +17,7 @@ services:
       - "${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./bot/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-prootpass"]
       interval: 5s
@@ -20,11 +25,11 @@ services:
       retries: 20
 
   bot:
-    build: .
+    build: ./bot
     container_name: nash-dom-bot
     restart: unless-stopped
     env_file:
-      - .env
+      - ./bot/.env
     environment:
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
@@ -49,13 +54,12 @@ services:
         condition: service_healthy
 
   web:
-    build: ../hackaton
+    build: ./hackaton
     container_name: nash-dom-web
     restart: unless-stopped
     expose:
       - "80"
     environment:
-      # На случай прямого доступа к web без Caddy
       API_UPSTREAM: http://bot:3080
     depends_on:
       - bot
@@ -72,7 +76,7 @@ services:
       DOMAIN: ${DOMAIN:-localhost}
       ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./bot/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

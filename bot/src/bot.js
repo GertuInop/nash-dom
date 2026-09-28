@@ -173,19 +173,40 @@ bot.on('message_created', async (ctx) => {
   await handleTextMessage(ctx);
 });
 
-export async function startBot() {
-  await pingDb();
-  console.log('✅ MySQL подключен');
-  await ensureSchema();
-  console.log('✅ Схема БД проверена');
+async function startViaWebhook() {
+  const webhookOptions = {
+    domain: config.domain,
+    path: config.webhookPath,
+    ...(config.webhookSecret ? { secret: config.webhookSecret } : {}),
+  };
 
+  let webhookHandler = null;
+  await startApiServer({
+    webhookHandler: (req, res) => {
+      if (!webhookHandler) {
+        res.writeHead(503, { 'Content-Type': 'text/plain' });
+        res.end('Starting');
+        return;
+      }
+      // Express может менять req.url — библиотека сверяет его с path
+      req.url = config.webhookPath;
+      webhookHandler(req, res);
+    },
+  });
+
+  console.log(`✅ Webhook: https://${config.domain}${config.webhookPath}`);
+  webhookHandler = await bot.createWebhook(webhookOptions);
+  console.log('✅ Подписка webhook зарегистрирована в MAX');
+}
+
+async function startViaPolling() {
   await startApiServer();
 
   const maxAttempts = 5;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      console.log('✅ Бот «Наш дом» запускается...');
-      await bot.start();
+      console.log('✅ Бот «Наш дом» (long polling)...');
+      await bot.start({ mode: 'polling' });
       return;
     } catch (error) {
       const reason = error?.cause?.code || error?.message || error;
@@ -194,6 +215,20 @@ export async function startBot() {
       await new Promise((resolve) => setTimeout(resolve, attempt * 2000));
     }
   }
+}
+
+export async function startBot() {
+  await pingDb();
+  console.log('✅ MySQL подключен');
+  await ensureSchema();
+  console.log('✅ Схема БД проверена');
+
+  if (config.botMode === 'webhook') {
+    await startViaWebhook();
+    return;
+  }
+
+  await startViaPolling();
 }
 
 export { bot };

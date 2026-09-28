@@ -56,7 +56,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const clientApi = {
   login: (phone: string, password: string) =>
-    api<BootstrapPayload & { token: string }>('/api/auth/login', {
+    api<BootstrapPayload & { token: string }>('/server/auth/login', {
       method: 'POST',
       body: JSON.stringify({ phone, password }),
     }),
@@ -68,35 +68,35 @@ export const clientApi = {
     role: 'resident' | 'uk'
     ukName?: string
   }) =>
-    api<BootstrapPayload & { token: string }>('/api/auth/register', {
+    api<BootstrapPayload & { token: string }>('/server/auth/register', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
 
-  logout: () => api<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
+  logout: () => api<{ ok: boolean }>('/server/auth/logout', { method: 'POST' }),
 
-  me: () => api<BootstrapPayload>('/api/me'),
+  me: () => api<BootstrapPayload>('/server/me'),
 
   selectHouse: (houseId: string) =>
-    api<BootstrapPayload>('/api/me/house', {
+    api<BootstrapPayload>('/server/me/house', {
       method: 'POST',
       body: JSON.stringify({ houseId }),
     }),
 
   saveAddress: (street: string, entrance: string, flat: string) =>
-    api<{ user: User }>('/api/me/address', {
+    api<{ user: User }>('/server/me/address', {
       method: 'POST',
       body: JSON.stringify({ street, entrance, flat }),
     }),
 
   skipAddress: () =>
-    api<{ user: User }>('/api/me/address', {
+    api<{ user: User }>('/server/me/address', {
       method: 'POST',
       body: JSON.stringify({ skip: true }),
     }),
 
   sendMessage: (chatId: string, text: string) =>
-    api<{ message: Message; chats: Chat[]; error?: string }>(`/api/chats/${chatId}/messages`, {
+    api<{ message: Message; chats: Chat[]; error?: string }>(`/server/chats/${chatId}/messages`, {
       method: 'POST',
       body: JSON.stringify({ text }),
     }),
@@ -108,19 +108,19 @@ export const clientApi = {
     photoLabel?: string
     photoUrl?: string
   }) =>
-    api<BootstrapPayload & { chatId: string; topic?: Topic }>('/api/topics', {
+    api<BootstrapPayload & { chatId: string; topic?: Topic }>('/server/topics', {
       method: 'POST',
       body: JSON.stringify(input),
     }),
 
   setTicketStatus: (id: string, status: TicketStatus) =>
-    api<{ ticket: Ticket }>(`/api/tickets/${id}`, {
+    api<{ ticket: Ticket }>(`/server/tickets/${id}`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),
 
   setWorkStatus: (id: string, status: WorkStatus) =>
-    api<{ work: EntranceWork }>(`/api/works/${id}`, {
+    api<{ work: EntranceWork }>(`/server/works/${id}`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),
