@@ -1,0 +1,23 @@
+{
+	# Email для Let's Encrypt (уведомления об истечении сертификата)
+	email {$ACME_EMAIL:admin@example.com}
+}
+
+{$DOMAIN:localhost} {
+	encode gzip
+
+	# Прокси на Node (бот + API + статика miniapp)
+	reverse_proxy bot:3080
+
+	header {
+		# Базовая защита
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

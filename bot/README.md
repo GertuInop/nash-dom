@@ -27,12 +27,14 @@
 | `src/keyboards.js` | Inline-клавиатуры |
 | `mysql/init.sql` | Схема БД |
 | `certs/` | Сертификаты Минцифры для TLS к MAX API |
+| `caddy/Caddyfile` | Reverse proxy + автоматический HTTPS |
+| `miniapp/` | Веб-клиент / мини-приложение MAX |
 
-Веб-клиент / мини-приложение (`miniapp/`: `index.html`, `app.css`, `app.js`) открывается на порту `API_PORT` и пишет в ту же БД `nash_dom`. Вход из MAX — через Bridge `initData` и `POST /api/auth/max`.
+Веб-клиент / мини-приложение (`miniapp/`: `index.html`, `app.css`, `app.js`) открывается по **HTTPS** через Caddy и пишет в ту же БД `nash_dom`. Вход из MAX — через Bridge `initData` и `POST /api/auth/max`.
 
 Роли: `resident`, `uk`, `admin`.
 
-Стек: **Node.js (JavaScript)**, **MySQL 8**, **Express**, **Docker Compose**, библиотека `@maxhub/max-bot-api`.
+Стек: **Node.js (JavaScript)**, **MySQL 8**, **Express**, **Caddy**, **Docker Compose**, библиотека `@maxhub/max-bot-api`.
 
 > MAX API (`platform-api2.max.ru`) использует сертификаты Минцифры. Они лежат в `certs/` и подключаются в Docker и через кастомный `fetch` бота.
 
@@ -42,7 +44,22 @@
 docker compose up --build -d
 ```
 
-Перед запуском скопируйте `.env.example` в `.env` и укажите `BOT_TOKEN` и `ADMIN_USER_IDS`.
+Перед запуском скопируйте `.env.example` в `.env` и укажите `BOT_TOKEN`, `ADMIN_USER_IDS`, а для продакшена — `DOMAIN`, `ACME_EMAIL`, `MINIAPP_URL`.
+
+## HTTPS через Caddy
+
+Caddy слушает **80/443**, получает сертификат Let's Encrypt и проксирует на `bot:3080`.
+
+1. Укажите в `.env`:
+   - `DOMAIN=ваш-домен.ru`
+   - `ACME_EMAIL=you@mail.ru`
+   - `MINIAPP_URL=https://ваш-домен.ru/`
+2. DNS A/AAAA запись домена → IP сервера.
+3. Откройте порты **80** и **443** на фаерволе.
+4. `docker compose up --build -d`
+5. В кабинете MAX: Чат-боты → настройки → URL мини-приложения = `MINIAPP_URL`.
+
+Локально без домена: `DOMAIN=localhost` — Caddy поднимет внутренний сертификат (браузер может предупредить о недоверенном CA; для MAX нужен публичный домен с валидным SSL).
 
 ## Переменные окружения и порты
 
@@ -57,14 +74,16 @@ docker compose up --build -d
 | `MYSQL_PASSWORD` | Пароль БД | `nash_dom` |
 | `MYSQL_DATABASE` | Имя БД | `nash_dom` |
 | `MYSQL_ROOT_PASSWORD` | Root-пароль MySQL (Docker) | `rootpass` |
-| `API_PORT` | Порт HTTP API + статика мини-приложения | `3080` |
-| `MINIAPP_URL` | HTTPS URL мини-приложения (кнопка `openApp` в боте) | пусто |
+| `API_PORT` | Порт HTTP API внутри Docker-сети | `3080` |
+| `DOMAIN` | Домен для Caddy / Let's Encrypt | `localhost` |
+| `ACME_EMAIL` | Email для Let's Encrypt | `admin@example.com` |
+| `MINIAPP_URL` | HTTPS URL мини-приложения (кнопка `openApp`) | пусто |
 
 Порты:
+- **80 / 443** — Caddy (HTTP→HTTPS и SSL)
 - **3306** — MySQL (проброшен на хост)
-- **3080** — HTTP API (`/api/*`) для веб-клиента
 
-Бот работает через long polling; API открывает HTTP-порт для клиента.
+Бот работает через long polling; наружу API и miniapp доступны только через Caddy.
 
 ## Зависимости и интеграции
 
