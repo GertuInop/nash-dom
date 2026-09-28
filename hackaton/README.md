@@ -2,9 +2,9 @@
 
 Frontend мини-приложения MAX. Данные идут в **общую MySQL** через API бота (`/api`), а не в localStorage.
 
-## Запуск
+## Запуск локально (без Docker)
 
-1. Поднимите MySQL и API из `../bot` (см. корневой README).
+1. Поднимите MySQL и API из `../bot` (см. README бота).
 2. Здесь:
 
 ```bash
@@ -13,6 +13,45 @@ npm run dev
 ```
 
 Прокси Vite: `/api` → `http://127.0.0.1:3080`.
+
+## Запуск в Docker (отдельно от бота)
+
+Сначала должен быть запущен API бота на порту **3080** (или укажите свой `API_UPSTREAM`).
+
+```bash
+cp .env.example .env
+# при необходимости поправьте API_UPSTREAM и WEB_PORT
+
+docker compose up --build -d
+```
+
+Клиент: **http://localhost:5173**
+
+| Переменная | Описание | По умолчанию |
+|------------|----------|--------------|
+| `WEB_PORT` | Порт на хосте | `5173` |
+| `API_UPSTREAM` | Куда nginx шлёт `/api` | `http://host.docker.internal:3080` |
+
+Примеры `API_UPSTREAM`:
+- `http://host.docker.internal:3080` — бот на этом же компьютере
+- `http://nash-dom-bot:3080` — общая Docker-сеть с ботом
+- `https://ваш-домен.ru` — API через Caddy
+
+Подключить web к сети бота:
+
+```bash
+docker network connect max-hakaton_default nash-dom-web
+# и в .env: API_UPSTREAM=http://bot:3080
+# (имя сервиса в compose бота — bot)
+```
+
+Имя сети бота смотрите: `docker network ls` (часто `bot_default` или `max-hakaton_default` в зависимости от папки).
+
+Остановка:
+
+```bash
+docker compose down
+```
 
 ## Демо-вход
 

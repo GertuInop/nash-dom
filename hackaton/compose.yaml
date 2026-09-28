@@ -1,0 +1,17 @@
+services:
+  web:
+    build: .
+    container_name: nash-dom-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-5173}:80"
+    environment:
+      # Куда nginx проксирует /api
+      # Бот на том же хосте (Docker Desktop / Linux с host-gateway):
+      API_UPSTREAM: ${API_UPSTREAM:-http://host.docker.internal:3080}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  default:
+    name: nash-dom-web-net
