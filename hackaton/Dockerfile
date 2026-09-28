@@ -14,18 +14,12 @@ COPY vite.config.ts ./
 
 RUN npm run build
 
-# Раздача через nginx
+# Раздача через nginx (entrypoint сам подставляет env в *.template)
 FROM nginx:1.27-alpine
-
-RUN apk add --no-cache gettext
 
 COPY nginx/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 
 ENV API_UPSTREAM=http://host.docker.internal:3080
-ENV PORT=80
 
 EXPOSE 80
-
-# Подставляем API_UPSTREAM в конфиг и стартуем nginx
-CMD ["/bin/sh", "-c", "envsubst '${API_UPSTREAM}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
