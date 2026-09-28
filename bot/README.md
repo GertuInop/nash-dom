@@ -17,17 +17,22 @@
 
 | Компонент | Описание |
 |-----------|----------|
-| `bot.js` | Точка входа |
+| `bot.js` | Точка входа: бот + HTTP API |
+| `api.js` | Только HTTP API (без MAX), та же MySQL |
 | `src/bot.js` | Обработчики MAX Bot API |
+| `src/api/server.js` | REST API для веб-клиента |
+| `src/web-db.js` | Веб-схема и запросы (дома, чаты, темы) |
 | `src/handlers.js` | Онбординг, меню, админ-решения |
 | `src/db.js` | Работа с MySQL |
 | `src/keyboards.js` | Inline-клавиатуры |
 | `mysql/init.sql` | Схема БД |
 | `certs/` | Сертификаты Минцифры для TLS к MAX API |
 
+Веб-клиент / мини-приложение (`miniapp/`: `index.html`, `app.css`, `app.js`) открывается на порту `API_PORT` и пишет в ту же БД `nash_dom`. Вход из MAX — через Bridge `initData` и `POST /api/auth/max`.
+
 Роли: `resident`, `uk`, `admin`.
 
-Стек: **Node.js (JavaScript)**, **MySQL 8**, **Docker Compose**, библиотека `@maxhub/max-bot-api`.
+Стек: **Node.js (JavaScript)**, **MySQL 8**, **Express**, **Docker Compose**, библиотека `@maxhub/max-bot-api`.
 
 > MAX API (`platform-api2.max.ru`) использует сертификаты Минцифры. Они лежат в `certs/` и подключаются в Docker и через кастомный `fetch` бота.
 
@@ -52,16 +57,20 @@ docker compose up --build -d
 | `MYSQL_PASSWORD` | Пароль БД | `nash_dom` |
 | `MYSQL_DATABASE` | Имя БД | `nash_dom` |
 | `MYSQL_ROOT_PASSWORD` | Root-пароль MySQL (Docker) | `rootpass` |
+| `API_PORT` | Порт HTTP API + статика мини-приложения | `3080` |
+| `MINIAPP_URL` | HTTPS URL мини-приложения (кнопка `openApp` в боте) | пусто |
 
 Порты:
 - **3306** — MySQL (проброшен на хост)
+- **3080** — HTTP API (`/api/*`) для веб-клиента
 
-Бот работает через long polling и наружный HTTP-порт не открывает.
+Бот работает через long polling; API открывает HTTP-порт для клиента.
 
 ## Зависимости и интеграции
 
 - `@maxhub/max-bot-api` — API мессенджера MAX
 - `mysql2` — драйвер MySQL
+- `express` / `cors` — HTTP API для веб-клиента
 - `dotenv` — переменные окружения
 - Внешний сервис: **MAX Bot Platform** (нужен валидный `BOT_TOKEN`)
 

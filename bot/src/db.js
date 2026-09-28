@@ -86,6 +86,9 @@ export async function ensureSchema() {
   const { ensureTicketsSchema } = await import('./tickets-db.js');
   await ensureTicketsSchema();
   await ensureResidentJoinSchema();
+
+  const { ensureWebSchema } = await import('./web-db.js');
+  await ensureWebSchema();
 }
 
 async function ensureResidentJoinSchema() {
@@ -279,6 +282,13 @@ export async function updateUser(userId, fields) {
     'username',
     'first_name',
     'last_name',
+    'password_hash',
+    'house_id',
+    'street',
+    'entrance',
+    'flat',
+    'skipped_address',
+    'uk_name',
   ];
 
   const entries = Object.entries(fields).filter(([key]) => allowed.includes(key));

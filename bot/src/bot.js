@@ -6,6 +6,7 @@ import { Bot } from '@maxhub/max-bot-api';
 import { Agent, fetch as undiciFetch } from 'undici';
 import { config } from './config.js';
 import { ensureSchema, pingDb } from './db.js';
+import { startApiServer } from './api/server.js';
 import {
   handleAbout,
   handleAdminDecision,
@@ -177,6 +178,8 @@ export async function startBot() {
   console.log('✅ MySQL подключен');
   await ensureSchema();
   console.log('✅ Схема БД проверена');
+
+  await startApiServer();
 
   const maxAttempts = 5;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {

@@ -3,6 +3,12 @@ import { config } from './config.js';
 
 const { button, inlineKeyboard } = Keyboard;
 
+/** Кнопка открытия мини-приложения (MAX OpenAppButton) */
+function miniappOpenRow() {
+  if (!config.miniappUrl) return [];
+  return [[button.openApp('📱 Открыть Наш Дом', config.miniappUrl)]];
+}
+
 export function consentKeyboard() {
   return inlineKeyboard([
     [button.link('📄 Согласие на обработку ПДн', config.consentUrl)],
@@ -20,6 +26,7 @@ export function roleKeyboard() {
 
 export function residentMenuKeyboard() {
   return inlineKeyboard([
+    ...miniappOpenRow(),
     [
       button.callback('🚨 Авария', 'menu:emergency'),
       button.callback('📝 Подать заявку', 'menu:request'),
@@ -42,6 +49,7 @@ export function residentMenuKeyboard() {
 /** Без привязанной УК — только настройки и справка (+ поиск УК) */
 export function residentLimitedMenuKeyboard() {
   return inlineKeyboard([
+    ...miniappOpenRow(),
     [button.callback('🔎 Найти УК', 'uksearch:start')],
     [
       button.callback('⚙️ Настройки', 'menu:settings'),
@@ -53,6 +61,7 @@ export function residentLimitedMenuKeyboard() {
 /** Заявка на УК отправлена, ждём одобрения */
 export function residentPendingMenuKeyboard() {
   return inlineKeyboard([
+    ...miniappOpenRow(),
     [button.callback('⏳ Статус заявки в УК', 'resident:join_status')],
     [button.callback('❌ Отменить заявку в УК', 'resident:join_cancel')],
     [
@@ -65,6 +74,7 @@ export function residentPendingMenuKeyboard() {
 export function ukMenuKeyboard(isApproved) {
   if (!isApproved) {
     return inlineKeyboard([
+      ...miniappOpenRow(),
       [button.callback('⏳ Статус заявки', 'uk:status')],
       [button.callback('ℹ️ О чат-боте', 'menu:about')],
       [button.callback('🏠 На главную', 'nav:home')],
@@ -72,6 +82,7 @@ export function ukMenuKeyboard(isApproved) {
   }
 
   return inlineKeyboard([
+    ...miniappOpenRow(),
     [button.callback('📥 Входящие заявки', 'uk:incoming')],
     [button.callback('👥 Заявки жильцов', 'uk:resident_joins')],
     [button.callback('📢 Рассылка жителям', 'uk:broadcast')],

@@ -8,14 +8,18 @@ function required(name) {
   return value;
 }
 
+const apiOnly = process.env.API_ONLY === '1' || process.argv.some((a) => String(a).endsWith('api.js'));
+
 export const config = {
-  botToken: required('BOT_TOKEN'),
+  botToken: apiOnly ? (process.env.BOT_TOKEN || '') : required('BOT_TOKEN'),
   consentUrl: process.env.CONSENT_URL || 'https://example.com/consent.pdf',
   adminUserIds: (process.env.ADMIN_USER_IDS || '')
     .split(',')
     .map((id) => id.trim())
     .filter(Boolean)
     .map(Number),
+  apiPort: Number(process.env.API_PORT || 3080),
+  miniappUrl: process.env.MINIAPP_URL || '',
   mysql: {
     host: process.env.MYSQL_HOST || '127.0.0.1',
     port: Number(process.env.MYSQL_PORT || 3306),

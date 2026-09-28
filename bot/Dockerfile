@@ -5,8 +5,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY bot.js ./
+COPY bot.js api.js ./
 COPY src ./src
+COPY miniapp ./miniapp
 COPY certs ./certs
 
 ENV NODE_ENV=production
