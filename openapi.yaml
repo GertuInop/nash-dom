@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: Наш дом API
+  title: Дом под рукой API
   description: |
-    REST API мини-приложения «Наш дом» для мессенджера MAX.
+    REST API мини-приложения «Дом под рукой» для мессенджера MAX.
     Базовый префикс всех методов: `/server`.
   version: 1.0.0
 

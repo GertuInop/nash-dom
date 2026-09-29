@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "description": "Тестовые данные «Наш дом» для воспроизводимой проверки API и мини-приложения. Загрузка: npm run seed — из каталога bot, или docker compose exec bot node scripts/reset-and-seed.js",
+  "description": "Тестовые данные «Дом под рукой» для воспроизводимой проверки API и мини-приложения. Загрузка: npm run seed — из каталога bot, или docker compose exec bot node scripts/reset-and-seed.js",
   "accounts": [
     {
       "id": "resident-demo",

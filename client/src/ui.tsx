@@ -10,9 +10,9 @@ import { NavLink } from 'react-router-dom'
 export function Logo({ light = false }: { light?: boolean }) {
   return (
     <div className={light ? 'logo logo-light' : 'logo'}>
-      <div className="logo-mark">ND</div>
+      <div className="logo-mark">ДР</div>
       <div>
-        <strong>Наш Дом</strong>
+        <strong>Дом под рукой</strong>
         <div className="muted" style={{ fontSize: 12 }}>
           мини-приложение MAX
         </div>

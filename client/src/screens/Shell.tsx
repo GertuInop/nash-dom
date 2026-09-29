@@ -32,7 +32,7 @@ export function AppShell() {
           { to: '/app/profile', label: 'Профиль', icon: UserRound },
         ]
 
-  const title = isAdmin ? 'Админ-панель' : isUk ? 'Панель УК' : 'Наш Дом'
+  const title = isAdmin ? 'Админ-панель' : isUk ? 'Панель УК' : 'Дом под рукой'
   const sub = isAdmin
     ? 'Управление УК и пользователями'
     : house

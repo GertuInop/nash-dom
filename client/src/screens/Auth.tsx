@@ -13,7 +13,7 @@ export function MaxRequiredScreen() {
         <aside className="auth-aside">
           <Logo light />
           <div className="auth-aside-copy">
-            <span className="auth-pill">Наш Дом · MAX</span>
+            <span className="auth-pill">Дом под рукой · MAX</span>
             <h2>Мини-приложение MAX</h2>
             <p>Вход не нужен — профиль подтягивается по вашему id в MAX.</p>
           </div>
@@ -48,7 +48,7 @@ export function ConsentScreen() {
     void fetch('/server/consent-text')
       .then((r) => r.json())
       .then((d) => setText(String(d.text || '')))
-      .catch(() => setText('Не удалось загрузить текст соглашения. Нажмите «Согласен», если принимаете условия сервиса «Наш дом».'))
+      .catch(() => setText('Не удалось загрузить текст соглашения. Нажмите «Согласен», если принимаете условия сервиса «Дом под рукой».'))
   }, [])
 
   return (
@@ -57,7 +57,7 @@ export function ConsentScreen() {
         <aside className="auth-aside">
           <Logo light />
           <div className="auth-aside-copy">
-            <span className="auth-pill">Наш Дом · MAX</span>
+            <span className="auth-pill">Дом под рукой · MAX</span>
             <h2>Пользовательское соглашение</h2>
             <p>Перед работой с сервисом нужно подтвердить согласие с условиями.</p>
           </div>

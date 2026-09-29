@@ -870,7 +870,7 @@ function createServerRouter() {
       if (result.managerMaxId) {
         await notifyMaxUser(
           result.managerMaxId,
-          `⚠️ Ваша УК «${name}» заблокирована администратором. Жители отвязаны. Обратитесь в поддержку бота «Наш дом».`,
+          `⚠️ Ваша УК «${name}» заблокирована администратором. Жители отвязаны. Обратитесь в поддержку бота «Дом под рукой».`,
         );
       }
       res.json({
@@ -919,7 +919,7 @@ function createServerRouter() {
       if (user?.maxUserId) {
         await notifyMaxUser(
           user.maxUserId,
-          '⚠️ Ваш аккаунт в «Наш дом» заблокирован администратором.',
+          '⚠️ Ваш аккаунт в «Дом под рукой» заблокирован администратором.',
         );
       }
       res.json({ ok: true, user });
@@ -935,7 +935,7 @@ function createServerRouter() {
       if (user?.maxUserId) {
         await notifyMaxUser(
           user.maxUserId,
-          '✅ Ваш аккаунт в «Наш дом» разблокирован.',
+          '✅ Ваш аккаунт в «Дом под рукой» разблокирован.',
         );
       }
       res.json({ ok: true, user });

@@ -31,7 +31,7 @@ export function isMaxLinkNotFoundError(error) {
 /** Кнопка открытия мини-приложения (MAX OpenAppButton) */
 function miniappOpenRow() {
   if (!urlButtonsEnabled || !config.miniappUrl || !config.enableOpenApp) return [];
-  return [[button.openApp('📱 Открыть Наш Дом', config.miniappUrl)]];
+  return [[button.openApp('📱 Открыть Дом под рукой', config.miniappUrl)]];
 }
 
 export function consentKeyboard() {

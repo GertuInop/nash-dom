@@ -214,7 +214,7 @@ async function startViaPolling() {
   const maxAttempts = 5;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      console.log('✅ Бот «Наш дом» (long polling)...');
+      console.log('✅ Бот «Дом под рукой» (long polling)...');
       await bot.start({ mode: 'polling' });
       return;
     } catch (error) {
