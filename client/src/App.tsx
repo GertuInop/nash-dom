@@ -1,10 +1,11 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { MaxRequiredScreen, ConsentScreen } from './screens/Auth'
+import { OnboardingScreen } from './screens/Onboarding'
 import { AdminPanelScreen } from './screens/Admin'
 import { ChatsScreen } from './screens/Chats'
 import { FeedScreen } from './screens/Feed'
-import { PrivateAddressScreen, SelectCompanyScreen } from './screens/House'
+import { PrivateAddressScreen } from './screens/House'
 import { ProfileScreen } from './screens/Profile'
 import { MyTicketsScreen } from './screens/Tickets'
 import { AppShell } from './screens/Shell'
@@ -30,16 +31,24 @@ function NeedAuth() {
   const user = useUser()
   if (!user) return <MaxRequiredScreen />
   if (!user.consentAccepted) return <ConsentScreen />
+  if (!user.onboardingComplete) return <OnboardingScreen />
   return <Outlet />
+}
+
+function OnboardingRoute() {
+  const user = useUser()
+  if (user?.onboardingComplete) return <Navigate to="/app" replace />
+  return <OnboardingScreen />
 }
 
 function NeedHouse() {
   const user = useUser()
   const location = useLocation()
   if (!user?.consentAccepted) return <ConsentScreen />
+  if (!user?.onboardingComplete) return <OnboardingScreen />
   if (user?.role === 'admin') return <Outlet />
-  if (!user?.houseId && !user?.companyId) return <Navigate to="/select-uk" replace />
-  if (!user?.houseId) return <Navigate to="/select-uk" replace />
+  if (!user?.houseId && !user?.companyId) return <Navigate to="/onboarding" replace />
+  if (!user?.houseId) return <Navigate to="/onboarding" replace />
   if (user.role === 'resident' && !user.skippedAddress && !user.street && !user.flat) {
     if (location.pathname !== '/address') return <Navigate to="/address" replace />
   }
@@ -50,11 +59,9 @@ function HomeRedirect() {
   const user = useUser()
   if (!user) return <MaxRequiredScreen />
   if (!user.consentAccepted) return <ConsentScreen />
+  if (!user.onboardingComplete) return <Navigate to="/onboarding" replace />
   if (user.role === 'admin') return <Navigate to="/app" replace />
-  if (!user.houseId) return <Navigate to="/select-uk" replace />
-  if (user.role === 'resident' && !user.skippedAddress && !user.street && !user.flat) {
-    return <Navigate to="/address" replace />
-  }
+  if (!user.houseId) return <Navigate to="/onboarding" replace />
   return <Navigate to="/app" replace />
 }
 
@@ -110,8 +117,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomeRedirect />} />
           <Route element={<NeedAuth />}>
-            <Route path="/select-uk" element={<SelectCompanyScreen />} />
-            <Route path="/select-house" element={<Navigate to="/select-uk" replace />} />
+            <Route path="/onboarding" element={<OnboardingRoute />} />
+            <Route path="/select-uk" element={<Navigate to="/onboarding" replace />} />
+            <Route path="/select-house" element={<Navigate to="/onboarding" replace />} />
             <Route path="/address" element={<PrivateAddressScreen />} />
             <Route element={<NeedHouse />}>
               <Route path="/app" element={<AppShell />}>

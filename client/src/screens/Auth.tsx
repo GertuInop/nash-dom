@@ -68,7 +68,7 @@ export function ConsentScreen() {
           </div>
           <h1>Согласие</h1>
           <div className="consent-scroll">{text}</div>
-          <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+          <p className="consent-note">
             Полная PDF-версия доступна в боте («Открыть PDF соглашения») и по адресу{' '}
             <a href="/server/consent.pdf" target="_blank" rel="noreferrer">
               /server/consent.pdf

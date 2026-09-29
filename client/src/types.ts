@@ -22,7 +22,7 @@ export interface User {
   name: string
   phone: string
   password?: string
-  role: UserRole
+  role: UserRole | null
   houseId?: string
   ukName?: string
   /** Приватные поля: только сам пользователь */
@@ -35,6 +35,10 @@ export interface User {
   maxUserId?: string
   username?: string
   consentAccepted?: boolean
+  citySlug?: string
+  city?: string
+  onboardingStep?: string
+  onboardingComplete?: boolean
 }
 
 export interface House {

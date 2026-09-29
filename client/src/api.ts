@@ -113,6 +113,38 @@ export const clientApi = {
   acceptConsent: () =>
     api<BootstrapPayload>('/server/me/consent', { method: 'POST' }),
 
+  setRole: (role: 'resident' | 'uk') =>
+    api<BootstrapPayload>('/server/me/role', {
+      method: 'POST',
+      body: JSON.stringify({ role }),
+    }),
+
+  saveResidentOnboarding: (input: {
+    phone: string
+    city: string
+    street: string
+    entrance: string
+    flat: string
+  }) =>
+    api<BootstrapPayload>('/server/me/onboarding/resident', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  registerUkOnboarding: (input: {
+    name: string
+    phone: string
+    city: string
+    address: string
+    entrances: number
+    floors: number
+    parkingSpots: number
+  }) =>
+    api<BootstrapPayload>('/server/me/onboarding/uk', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
   logout: () => api<{ ok: boolean }>('/server/auth/logout', { method: 'POST' }),
 
   me: () => api<BootstrapPayload>('/server/me'),

@@ -1,6 +1,17 @@
 import crypto from 'node:crypto';
-import { pool, updateUser } from './db.js';
+import { pool, updateUser, upsertCity } from './db.js';
+import { toCitySlug, formatCityDisplay } from './cities.js';
 import { createRequest, getRequestById, updateRequestStatus } from './tickets-db.js';
+
+function normalizePhone(raw) {
+  let d = String(raw || '').replace(/\D/g, '');
+  if (d.length === 11 && d.startsWith('8')) d = `7${d.slice(1)}`;
+  if (d.length === 10) d = `7${d}`;
+  if (d.length < 11) {
+    throw Object.assign(new Error('Укажите телефон в формате +7XXXXXXXXXX'), { status: 400 });
+  }
+  return `+${d.slice(0, 11)}`;
+}
 
 const HOUSE_SEED = [];
 
@@ -472,29 +483,56 @@ export async function deleteSession(token) {
 
 export function serializeUserFixed(user) {
   if (!user) return null;
-  let role = 'resident';
+  let role = null;
   if (user.role === 'admin') role = 'admin';
   else if (user.role === 'uk') role = 'uk';
+  else if (user.role === 'resident') role = 'resident';
 
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ')
     || user.full_name
     || 'Пользователь';
+
+  const phone = user.phone || '';
+  const citySlug = user.city_slug || '';
+  const street = user.street || undefined;
+  const entrance = user.entrance || undefined;
+  const flat = user.flat || undefined;
+  const companyId = user.company_id ? String(user.company_id) : undefined;
+  const houseId = user.house_id || undefined;
+
+  const onboardingComplete = Boolean(
+    role === 'admin'
+    || (role === 'resident'
+      && phone
+      && citySlug
+      && street
+      && entrance
+      && flat
+      && companyId
+      && houseId)
+    || (role === 'uk' && companyId && houseId),
+  );
+
   return {
     id: String(user.id),
     name,
-    phone: user.phone || '',
+    phone,
     role,
-    houseId: user.house_id || undefined,
+    houseId,
     ukName: user.uk_name || undefined,
-    street: user.street || undefined,
-    entrance: user.entrance || undefined,
-    flat: user.flat || undefined,
+    street,
+    entrance,
+    flat,
     skippedAddress: Boolean(user.skipped_address) || role === 'uk' || role === 'admin',
-    companyId: user.company_id ? String(user.company_id) : undefined,
+    companyId,
     blocked: Boolean(user.is_blocked),
     maxUserId: user.max_user_id ? String(user.max_user_id) : undefined,
     username: user.username || undefined,
     consentAccepted: Boolean(user.consent_accepted),
+    citySlug: citySlug || undefined,
+    city: citySlug ? cityLabelFromSlug(citySlug) : undefined,
+    onboardingStep: user.onboarding_step || undefined,
+    onboardingComplete,
   };
 }
 
@@ -516,9 +554,7 @@ export async function listHouses() {
 
 function cityLabelFromSlug(slug) {
   if (!slug) return 'Город';
-  return String(slug)
-    .replace(/_/g, ' ')
-    .replace(/(^|\s)\S/g, (m) => m.toUpperCase());
+  return formatCityDisplay(slug);
 }
 
 export async function listApprovedCompanies() {
@@ -540,24 +576,36 @@ export async function listApprovedCompanies() {
   }));
 }
 
-export async function ensureHouseForCompany(company) {
+export async function ensureHouseForCompany(company, opts = {}) {
   if (!company?.id) return null;
+  const floors = Math.max(1, Math.min(50, Number(opts.floors) || 5));
+  const entrances = Math.max(1, Math.min(20, Number(opts.entrances) || 2));
+  const parkingSpots = Math.max(0, Math.min(200, Number(opts.parkingSpots) ?? 18));
+
   const [existing] = await pool.execute(
     'SELECT * FROM houses WHERE company_id = :cid ORDER BY id ASC LIMIT 1',
     { cid: company.id },
   );
-  if (existing[0]) return existing[0];
+  if (existing[0]) {
+    if (opts.floors || opts.entrances) {
+      await pool.execute(
+        'UPDATE houses SET floors = :floors, entrances = :entrances WHERE id = :id',
+        { floors, entrances, id: existing[0].id },
+      );
+    }
+    return getHouse(existing[0].id);
+  }
 
   const id = `c-${company.id}`;
   const city = cityLabelFromSlug(company.city_slug);
   const address = company.address || company.name;
   await pool.execute(
     `INSERT INTO houses (id, city, address, uk_name, company_id, floors, entrances)
-     VALUES (:id, :city, :address, :uk, :cid, 5, 2)
+     VALUES (:id, :city, :address, :uk, :cid, :floors, :entrances)
      ON DUPLICATE KEY UPDATE
        city = VALUES(city), address = VALUES(address), uk_name = VALUES(uk_name),
-       company_id = VALUES(company_id)`,
-    { id, city, address, uk: company.name, cid: company.id },
+       company_id = VALUES(company_id), floors = VALUES(floors), entrances = VALUES(entrances)`,
+    { id, city, address, uk: company.name, cid: company.id, floors, entrances },
   );
   await ensureHouseChats(id);
 
@@ -565,22 +613,127 @@ export async function ensureHouseForCompany(company) {
     'SELECT COUNT(*) AS c FROM parking_spots WHERE house_id = :id',
     { id },
   );
-  if (Number(cnt[0].c) === 0) {
-    let n = 0;
-    for (let r = 0; r < 3; r += 1) {
-      for (let c = 0; c < 6; c += 1) {
-        n += 1;
-        await pool.execute(
-          `INSERT INTO parking_spots
-           (id, house_id, label, row_idx, col_idx, active, occupied, occupied_at)
-           VALUES (:pid, :houseId, :label, :rowIdx, :colIdx, 1, 0, NULL)`,
-          { pid: `${id}-p${n}`, houseId: id, label: `P${n}`, rowIdx: r, colIdx: c },
-        );
-      }
+  if (Number(cnt[0].c) === 0 && parkingSpots > 0) {
+    const cols = 6;
+    for (let n = 1; n <= parkingSpots; n += 1) {
+      const rowIdx = Math.floor((n - 1) / cols);
+      const colIdx = (n - 1) % cols;
+      await pool.execute(
+        `INSERT INTO parking_spots
+         (id, house_id, label, row_idx, col_idx, active, occupied, occupied_at)
+         VALUES (:pid, :houseId, :label, :rowIdx, :colIdx, 1, 0, NULL)`,
+        { pid: `${id}-p${n}`, houseId: id, label: `P${n}`, rowIdx, colIdx },
+      );
     }
   }
 
   return getHouse(id);
+}
+
+/** Выбор роли после согласия (мини-приложение). */
+export async function setWebRole(userId, role) {
+  if (role !== 'resident' && role !== 'uk') {
+    throw Object.assign(new Error('Роль: resident или uk'), { status: 400 });
+  }
+  await updateUser(userId, {
+    role,
+    uk_status: role === 'uk' ? 'pending' : 'none',
+    onboarding_step: role === 'resident' ? 'phone' : 'uk_name',
+  });
+  return findUserById(userId);
+}
+
+/** Профиль жителя перед выбором УК. */
+export async function saveResidentOnboarding(user, input) {
+  const phone = normalizePhone(input.phone);
+  const cityRaw = String(input.city || '').trim();
+  const street = String(input.street || '').trim();
+  const entrance = String(input.entrance || '').trim();
+  const flat = String(input.flat || '').trim();
+
+  if (!cityRaw) throw Object.assign(new Error('Укажите город'), { status: 400 });
+  if (street.length < 2) throw Object.assign(new Error('Укажите адрес'), { status: 400 });
+  if (!entrance) throw Object.assign(new Error('Укажите подъезд'), { status: 400 });
+  if (!flat) throw Object.assign(new Error('Укажите квартиру'), { status: 400 });
+
+  const citySlug = toCitySlug(cityRaw);
+  await upsertCity(citySlug, cityRaw);
+
+  await updateUser(user.id, {
+    role: 'resident',
+    phone,
+    city_slug: citySlug,
+    street,
+    entrance,
+    flat,
+    skipped_address: 1,
+    registration_address: [street, `подъезд ${entrance}`, `кв. ${flat}`].join(', '),
+    onboarding_step: 'uk_search',
+  });
+  return findUserById(user.id);
+}
+
+/** Регистрация УК из мини-приложения (сразу approved). */
+export async function registerUkCompany(user, input) {
+  const name = String(input.name || '').trim();
+  const phone = normalizePhone(input.phone);
+  const cityRaw = String(input.city || '').trim();
+  const address = String(input.address || '').trim();
+  const entrances = Math.max(1, Math.min(20, Number(input.entrances) || 0));
+  const floors = Math.max(1, Math.min(50, Number(input.floors) || 0));
+
+  if (name.length < 2) throw Object.assign(new Error('Укажите название УК'), { status: 400 });
+  if (!cityRaw) throw Object.assign(new Error('Укажите город'), { status: 400 });
+  if (address.length < 3) throw Object.assign(new Error('Укажите адрес УК / дома'), { status: 400 });
+  if (!Number(input.entrances)) throw Object.assign(new Error('Укажите количество подъездов'), { status: 400 });
+  if (!Number(input.floors)) throw Object.assign(new Error('Укажите количество этажей'), { status: 400 });
+  if (input.parkingSpots === '' || input.parkingSpots == null || Number.isNaN(Number(input.parkingSpots))) {
+    throw Object.assign(new Error('Укажите количество парковочных мест'), { status: 400 });
+  }
+  const parkingSpots = Math.max(0, Math.min(200, Number(input.parkingSpots)));
+
+  const citySlug = toCitySlug(cityRaw);
+  await upsertCity(citySlug, cityRaw);
+
+  const [ins] = await pool.execute(
+    `INSERT INTO management_companies
+      (name, city_slug, status, requested_by_user_id, phone, address)
+     VALUES (:name, :slug, 'approved', :userId, :phone, :address)`,
+    {
+      name,
+      slug: citySlug,
+      userId: user.id,
+      phone,
+      address,
+    },
+  );
+  const companyId = ins.insertId;
+  const [rows] = await pool.execute(
+    'SELECT * FROM management_companies WHERE id = :id LIMIT 1',
+    { id: companyId },
+  );
+  const company = rows[0];
+  const house = await ensureHouseForCompany(company, { floors, entrances, parkingSpots });
+
+  await updateUser(user.id, {
+    role: 'uk',
+    company_id: companyId,
+    house_id: house.id,
+    uk_name: name,
+    uk_status: 'approved',
+    phone,
+    city_slug: citySlug,
+    skipped_address: 1,
+    onboarding_step: 'done',
+  });
+
+  await pool.execute(
+    `INSERT INTO notification_settings (user_id) VALUES (:userId)
+     ON DUPLICATE KEY UPDATE user_id = user_id`,
+    { userId: user.id },
+  );
+
+  return findUserById(user.id);
 }
 
 export async function selectUserCompany(userId, companyId) {
@@ -600,7 +753,8 @@ export async function selectUserCompany(userId, companyId) {
     house_id: house.id,
     uk_name: company.name,
     city_slug: company.city_slug || user.city_slug,
-    skipped_address: user.role === 'uk' ? 1 : user.skipped_address || 0,
+    skipped_address: user.role === 'uk' ? 1 : 1,
+    onboarding_step: 'done',
   });
 
   // История присоединения жителя + уведомление УК

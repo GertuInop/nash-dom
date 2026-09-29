@@ -3,15 +3,40 @@ import { config } from './config.js';
 
 const { button, inlineKeyboard } = Keyboard;
 
+/** MAX требует зарегистрировать URL мини-приложения / link в кабинете бота.
+ *  Если API отвечает Link not found — отключаем URL-кнопки до рестарта. */
+let urlButtonsEnabled = true;
+
+export function areUrlButtonsEnabled() {
+  return urlButtonsEnabled && Boolean(config.miniappUrl || config.consentUrl);
+}
+
+export function disableUrlButtons(reason) {
+  if (!urlButtonsEnabled) return;
+  urlButtonsEnabled = false;
+  console.warn(
+    '[max] URL-кнопки (openApp/link) отключены — зарегистрируйте домен мини-приложения в кабинете MAX.',
+    reason || '',
+  );
+}
+
+export function isMaxLinkNotFoundError(error) {
+  const msg = String(error?.response?.message || error?.message || '');
+  return (
+    Number(error?.status) === 404
+    && (/Link not found|common\.finder|LinkPK/i.test(msg) || error?.response?.code === 'not.found')
+  );
+}
+
 /** Кнопка открытия мини-приложения (MAX OpenAppButton) */
 function miniappOpenRow() {
-  if (!config.miniappUrl) return [];
+  if (!urlButtonsEnabled || !config.miniappUrl || !config.enableOpenApp) return [];
   return [[button.openApp('📱 Открыть Наш Дом', config.miniappUrl)]];
 }
 
 export function consentKeyboard() {
   const rows = [];
-  if (config.consentUrl) {
+  if (urlButtonsEnabled && config.consentUrl && config.enableLinkButtons) {
     rows.push([button.link('📄 Открыть PDF соглашения', config.consentUrl)]);
   }
   rows.push([button.callback('📜 Кратко о соглашении', 'consent:read')]);
@@ -151,7 +176,7 @@ export function residentJoinKeyboard(requestId) {
 
 export function aboutKeyboard() {
   const rows = [];
-  if (config.consentUrl) {
+  if (urlButtonsEnabled && config.consentUrl && config.enableLinkButtons) {
     rows.push([button.link('📄 Пользовательское соглашение (PDF)', config.consentUrl)]);
   }
   rows.push([button.callback('📜 Текст соглашения', 'consent:read')]);

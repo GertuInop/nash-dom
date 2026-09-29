@@ -58,6 +58,7 @@ import {
   startBroadcast,
   startRequestFlow,
 } from './tickets.js';
+import { disableUrlButtons, isMaxLinkNotFoundError } from './keyboards.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const caBundlePath = path.resolve(__dirname, '../certs/russian_trusted_ca_bundle.pem');
@@ -82,6 +83,9 @@ const bot = new Bot(config.botToken, {
 setBotApi(bot.api);
 
 bot.catch((error) => {
+  if (isMaxLinkNotFoundError(error)) {
+    disableUrlButtons(error?.response?.message || error?.message);
+  }
   console.error('Bot error:', error);
 });
 

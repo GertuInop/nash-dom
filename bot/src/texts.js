@@ -1,7 +1,14 @@
 import { CONSENT_AGREEMENT_MARKDOWN } from './consent-text.js';
+import { config } from './config.js';
 
-export const texts = {
-  welcome: `🏠 *Наш дом* — ваш умный помощник по жилищным вопросам.
+function welcomeText() {
+  const pdf = config.consentUrl
+    ? `\n\n📄 PDF соглашения: ${config.consentUrl}`
+    : '';
+  const app = config.miniappUrl
+    ? `\n📱 Мини-приложение: ${config.miniappUrl}`
+    : '';
+  return `🏠 *Наш дом* — ваш умный помощник по жилищным вопросам.
 
 Бот связывает жителей и управляющую компанию:
 • 🚨 сообщать об авариях
@@ -10,7 +17,13 @@ export const texts = {
 • 🅿️ следить за парковкой и отключениями воды
 • 📢 получать рассылки от УК
 
-Чтобы продолжить, ознакомьтесь с пользовательским соглашением и подтвердите согласие.`,
+Чтобы продолжить, ознакомьтесь с пользовательским соглашением и подтвердите согласие.${pdf}${app}`;
+}
+
+export const texts = {
+  get welcome() {
+    return welcomeText();
+  },
 
   consentAgreement: CONSENT_AGREEMENT_MARKDOWN,
 

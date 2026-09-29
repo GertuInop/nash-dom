@@ -25,6 +25,12 @@ const miniappUrl =
   process.env.MINIAPP_URL ||
   (domain && domain !== 'localhost' ? `https://${domain}/` : '');
 
+/** openApp / link в MAX работают только если URL привязан к боту в кабинете платформы.
+ *  По умолчанию выключены (иначе sendMessage падает с Link not found).
+ *  После регистрации https://ДОМЕН в кабинете MAX: MINIAPP_OPENAPP=1 и при необходимости MAX_LINK_BUTTONS=1 */
+const enableOpenApp = process.env.MINIAPP_OPENAPP === '1';
+const enableLinkButtons = process.env.MAX_LINK_BUTTONS === '1';
+
 function cleanToken(value) {
   return String(value || '')
     .trim()
@@ -59,6 +65,8 @@ export const config = {
   webhookSecret: process.env.WEBHOOK_SECRET || '',
   webhookPath: '/bot',
   miniappUrl,
+  enableOpenApp,
+  enableLinkButtons,
   mysql: {
     host: process.env.MYSQL_HOST || '127.0.0.1',
     port: Number(process.env.MYSQL_PORT || 3306),

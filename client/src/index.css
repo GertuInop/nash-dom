@@ -68,6 +68,7 @@ button {
 .auth-shell {
   width: 100%;
   max-width: 960px;
+  min-width: 0;
   display: grid;
   grid-template-columns: 1fr;
   background: var(--white);
@@ -160,7 +161,10 @@ button {
 
 .auth-card {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 28px 22px;
+  overflow-x: hidden;
 }
 
 .auth-card-brand {
@@ -1735,9 +1739,12 @@ h1 {
 }
 
 .consent-scroll {
-  max-height: 42vh;
-  overflow: auto;
+  max-height: min(42vh, 320px);
+  overflow-x: hidden;
+  overflow-y: auto;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   font-size: 13px;
   line-height: 1.45;
   color: #334155;
@@ -1745,6 +1752,79 @@ h1 {
   border-radius: 12px;
   padding: 12px;
   margin: 0 0 14px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.consent-note {
+  font-size: 12px;
+  color: var(--text-2);
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.role-pick {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.role-card {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  cursor: pointer;
+  width: 100%;
+}
+
+.role-card:hover,
+.role-card:focus-visible {
+  border-color: var(--brand);
+  background: #eff4ff;
+}
+
+.role-card strong {
+  font-size: 16px;
+}
+
+.onboard-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  margin: 0 0 16px;
+  overflow: hidden;
+}
+
+.onboard-progress-bar {
+  height: 100%;
+  background: var(--brand);
+  border-radius: inherit;
+  transition: width 0.2s ease;
+}
+
+.onboard-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.onboard-nav .btn-primary {
+  flex: 1;
+}
+
+.onboard-list {
+  max-height: min(40vh, 280px);
+  overflow-y: auto;
+  margin: 12px 0 16px;
+  display: grid;
+  gap: 8px;
 }
 
 /* —— Мои обращения (жители) —— */

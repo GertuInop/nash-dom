@@ -69,6 +69,23 @@ export interface AppStore {
   setTicketStatus: (id: string, status: TicketStatus) => Promise<void>
   commentTicket: (id: string, text: string) => Promise<string | null>
   acceptConsent: () => Promise<void>
+  setRole: (role: 'resident' | 'uk') => Promise<void>
+  saveResidentOnboarding: (input: {
+    phone: string
+    city: string
+    street: string
+    entrance: string
+    flat: string
+  }) => Promise<void>
+  registerUkOnboarding: (input: {
+    name: string
+    phone: string
+    city: string
+    address: string
+    entrances: number
+    floors: number
+    parkingSpots: number
+  }) => Promise<void>
   setWorkStatus: (id: string, status: WorkStatus) => Promise<void>
   claimParking: (id: string) => Promise<string | null>
   releaseParking: (id: string) => Promise<string | null>
@@ -336,6 +353,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   acceptConsent: async () => {
     const data = await clientApi.acceptConsent()
+    applyData(set, data)
+  },
+
+  setRole: async (role) => {
+    const data = await clientApi.setRole(role)
+    applyData(set, data)
+  },
+
+  saveResidentOnboarding: async (input) => {
+    const data = await clientApi.saveResidentOnboarding(input)
+    applyData(set, data)
+  },
+
+  registerUkOnboarding: async (input) => {
+    const data = await clientApi.registerUkOnboarding(input)
     applyData(set, data)
   },
 

@@ -36,8 +36,11 @@ import {
   serializeUserFixed,
   setParkingActive,
   setTicketStatus,
+  setWebRole,
   setWorkStatus,
   skipPrivateAddress,
+  saveResidentOnboarding,
+  registerUkCompany,
   verifyPassword,
 } from '../web-db.js';
 import {
@@ -366,18 +369,52 @@ function createServerRouter() {
     '/me/consent',
     requireAuth,
     asyncHandler(async (req, res) => {
-      const fields = {
+      await updateUser(req.user.id, {
         consent_accepted: 1,
         consent_accepted_at: new Date(),
-      };
-      if (!req.user.role) {
-        fields.role = 'resident';
-        fields.onboarding_step = 'done';
-      } else if (req.user.onboarding_step === 'consent' || req.user.onboarding_step === 'welcome') {
-        fields.onboarding_step = 'done';
-      }
-      await updateUser(req.user.id, fields);
+        onboarding_step: req.user.role ? (req.user.onboarding_step || 'done') : 'role',
+      });
       const user = await findUserById(req.user.id);
+      res.json(await bootstrapForUser(user));
+    }),
+  );
+
+  api.post(
+    '/me/role',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      if (!req.user.consent_accepted) {
+        res.status(400).json({ error: 'Сначала примите соглашение' });
+        return;
+      }
+      const role = String(req.body?.role || '').trim();
+      const user = await setWebRole(req.user.id, role);
+      res.json(await bootstrapForUser(user));
+    }),
+  );
+
+  api.post(
+    '/me/onboarding/resident',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      if (!req.user.consent_accepted) {
+        res.status(400).json({ error: 'Сначала примите соглашение' });
+        return;
+      }
+      const user = await saveResidentOnboarding(req.user, req.body || {});
+      res.json(await bootstrapForUser(user));
+    }),
+  );
+
+  api.post(
+    '/me/onboarding/uk',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      if (!req.user.consent_accepted) {
+        res.status(400).json({ error: 'Сначала примите соглашение' });
+        return;
+      }
+      const user = await registerUkCompany(req.user, req.body || {});
       res.json(await bootstrapForUser(user));
     }),
   );

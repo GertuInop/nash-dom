@@ -41,7 +41,9 @@ import {
   adminMenuKeyboard,
   cityConfirmKeyboard,
   consentKeyboard,
+  disableUrlButtons,
   homeNavKeyboard,
+  isMaxLinkNotFoundError,
   myUkEmptyKeyboard,
   pendingUkKeyboard,
   residentJoinKeyboard,
@@ -70,6 +72,21 @@ function replyOpts(keyboard) {
   };
 }
 
+/** Отправка с клавиатурой: при Link not found убираем openApp/link и повторяем */
+async function replySafe(ctx, text, keyboardBuilder) {
+  const build = typeof keyboardBuilder === 'function' ? keyboardBuilder : () => keyboardBuilder;
+  try {
+    return await ctx.reply(text, replyOpts(build()));
+  } catch (error) {
+    if (!isMaxLinkNotFoundError(error)) throw error;
+    disableUrlButtons(error?.response?.message || error?.message);
+    const hint = config.miniappUrl
+      ? `\n\n📱 Откройте мини-приложение: ${config.miniappUrl}`
+      : '';
+    return ctx.reply(`${text}${hint}`, replyOpts(build()));
+  }
+}
+
 function escapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
@@ -89,6 +106,7 @@ export async function residentHomePayload(user) {
     return {
       text: 'Главное меню жителя. Выберите действие:',
       keyboard: residentMenuKeyboard(),
+      keyboardType: 'full',
     };
   }
   const pending = await getPendingResidentUkRequest(user.id);
@@ -96,17 +114,19 @@ export async function residentHomePayload(user) {
     return {
       text: `Заявка в УК «${pending.company_name}» ожидает одобрения руководителя.\nПока доступны только настройки и справка.`,
       keyboard: residentPendingMenuKeyboard(),
+      keyboardType: 'pending',
     };
   }
   return {
     text: 'УК ещё не подключена.\nДоступны настройки, справка и поиск управляющей компании.',
     keyboard: residentLimitedMenuKeyboard(),
+    keyboardType: 'limited',
   };
 }
 
 export async function showHome(ctx, user) {
   if (user.role === 'admin') {
-    return ctx.reply(texts.adminReady, replyOpts(adminMenuKeyboard()));
+    return replySafe(ctx, texts.adminReady, adminMenuKeyboard);
   }
 
   if (user.onboarding_step !== 'done') {
@@ -115,7 +135,11 @@ export async function showHome(ctx, user) {
 
   if (user.role === 'resident') {
     const home = await residentHomePayload(user);
-    return ctx.reply(home.text, replyOpts(home.keyboard));
+    return replySafe(ctx, home.text, () => {
+      if (home.keyboardType === 'pending') return residentPendingMenuKeyboard();
+      if (home.keyboardType === 'limited') return residentLimitedMenuKeyboard();
+      return residentMenuKeyboard();
+    });
   }
 
   if (user.role === 'uk') {
@@ -123,7 +147,7 @@ export async function showHome(ctx, user) {
     const text = approved
       ? 'Кабинет управляющей компании. Выберите действие:'
       : texts.ukWaitingMenu;
-    return ctx.reply(text, replyOpts(ukMenuKeyboard(approved)));
+    return replySafe(ctx, text, () => ukMenuKeyboard(approved));
   }
 
   return startOnboarding(ctx, user);
@@ -136,22 +160,19 @@ function askCityPrompt(user) {
 export async function startOnboarding(ctx, user) {
   if (!user.consent_accepted) {
     await updateUser(user.id, { onboarding_step: 'consent' });
-    return ctx.reply(texts.welcome, replyOpts(consentKeyboard()));
+    return replySafe(ctx, texts.welcome, consentKeyboard);
   }
 
   if (!user.role) {
     await updateUser(user.id, { onboarding_step: 'role' });
-    return ctx.reply(texts.chooseRole, replyOpts(roleKeyboard()));
+    return replySafe(ctx, texts.chooseRole, roleKeyboard);
   }
 
   switch (user.onboarding_step) {
     case 'city':
       return ctx.reply(askCityPrompt(user));
     case 'city_confirm':
-      return ctx.reply(
-        cityConfirmText(user.pending_city_display),
-        replyOpts(cityConfirmKeyboard()),
-      );
+      return replySafe(ctx, cityConfirmText(user.pending_city_display), cityConfirmKeyboard);
     case 'phone':
       return ctx.reply(texts.askPhone);
     case 'personal_account':
@@ -159,7 +180,7 @@ export async function startOnboarding(ctx, user) {
     case 'address':
       return ctx.reply(texts.askAddress);
     case 'uk_search':
-      return ctx.reply(texts.askUkSearch, replyOpts(ukSearchPromptKeyboard()));
+      return replySafe(ctx, texts.askUkSearch, ukSearchPromptKeyboard);
     case 'uk_name':
       return ctx.reply(texts.askUkName);
     case 'uk_phone':
@@ -203,10 +224,7 @@ export async function handleConsentRead(ctx) {
       ? `📄 Полный текст (PDF):\n${url}`
       : 'Полный текст доступен в мини-приложении на экране согласия.',
   ].join('\n');
-  return ctx.reply(short, {
-    format: 'markdown',
-    attachments: [consentKeyboard()],
-  });
+  return replySafe(ctx, short, consentKeyboard);
 }
 
 export async function handleRoleResident(ctx) {
@@ -688,7 +706,9 @@ export async function handleMyUk(ctx) {
 
 export async function handleAbout(ctx) {
   await ctx.answerOnCallback({ notification: 'О чат-боте' });
-  return ctx.reply(texts.about, replyOpts(aboutKeyboard()));
+  const pdf = config.consentUrl ? `\n\n📄 PDF: ${config.consentUrl}` : '';
+  const app = config.miniappUrl ? `\n📱 Мини-приложение: ${config.miniappUrl}` : '';
+  return replySafe(ctx, `${texts.about}${pdf}${app}`, aboutKeyboard);
 }
 
 export async function handleSettings(ctx) {
