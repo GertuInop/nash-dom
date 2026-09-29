@@ -36,8 +36,8 @@ async function tableExists(table) {
   return Number(rows[0]?.cnt) > 0;
 }
 
-/** Мягкая миграция для уже существующего Docker volume */
-export async function ensureSchema() {
+/** Базовые таблицы (если volume очистили / init.sql не отработал повторно) */
+async function ensureCoreTables() {
   if (!(await tableExists('cities'))) {
     await pool.execute(`
       CREATE TABLE cities (
@@ -50,6 +50,93 @@ export async function ensureSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
   }
+
+  if (!(await tableExists('users'))) {
+    await pool.execute(`
+      CREATE TABLE users (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        max_user_id BIGINT NULL,
+        username VARCHAR(255) NULL,
+        first_name VARCHAR(255) NULL,
+        last_name VARCHAR(255) NULL,
+        role ENUM('resident', 'uk', 'admin') NULL,
+        consent_accepted TINYINT(1) NOT NULL DEFAULT 0,
+        consent_accepted_at DATETIME NULL,
+        onboarding_step VARCHAR(64) NOT NULL DEFAULT 'welcome',
+        full_name VARCHAR(255) NULL,
+        phone VARCHAR(32) NULL,
+        personal_account VARCHAR(64) NULL,
+        city_slug VARCHAR(128) NULL,
+        pending_city_slug VARCHAR(128) NULL,
+        pending_city_display VARCHAR(255) NULL,
+        flow_step VARCHAR(64) NULL,
+        flow_json TEXT NULL,
+        registration_address VARCHAR(512) NULL,
+        company_id BIGINT UNSIGNED NULL,
+        uk_status ENUM('none', 'pending', 'approved', 'rejected') NOT NULL DEFAULT 'none',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_users_max_user_id (max_user_id),
+        KEY idx_users_role (role),
+        KEY idx_users_uk_status (uk_status),
+        KEY idx_users_city (city_slug)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
+  if (!(await tableExists('management_companies'))) {
+    await pool.execute(`
+      CREATE TABLE management_companies (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        name VARCHAR(255) NOT NULL,
+        city_slug VARCHAR(128) NULL,
+        phone VARCHAR(32) NULL,
+        email VARCHAR(255) NULL,
+        address VARCHAR(512) NULL,
+        status ENUM('pending', 'approved', 'rejected', 'blocked') NOT NULL DEFAULT 'pending',
+        requested_by_user_id BIGINT UNSIGNED NULL,
+        approved_by_user_id BIGINT UNSIGNED NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_mc_status (status),
+        KEY idx_mc_city (city_slug)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
+  if (!(await tableExists('addresses'))) {
+    await pool.execute(`
+      CREATE TABLE addresses (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id BIGINT UNSIGNED NOT NULL,
+        address_text VARCHAR(512) NOT NULL,
+        is_primary TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_addresses_user (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+
+  if (!(await tableExists('notification_settings'))) {
+    await pool.execute(`
+      CREATE TABLE notification_settings (
+        user_id BIGINT UNSIGNED NOT NULL,
+        status_changes TINYINT(1) NOT NULL DEFAULT 1,
+        water_shutdowns TINYINT(1) NOT NULL DEFAULT 1,
+        broadcasts TINYINT(1) NOT NULL DEFAULT 1,
+        parking_alerts TINYINT(1) NOT NULL DEFAULT 1,
+        PRIMARY KEY (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  }
+}
+
+/** Мягкая миграция для уже существующего Docker volume */
+export async function ensureSchema() {
+  await ensureCoreTables();
 
   const userColumns = [
     ['phone', 'VARCHAR(32) NULL'],

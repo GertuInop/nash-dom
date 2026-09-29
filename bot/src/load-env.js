@@ -25,8 +25,7 @@ for (const file of candidates) {
 
 if (loaded) {
   console.log(`[env] loaded ${loaded}`);
-} else {
-  console.warn('[env] .env не найден — используются только process.env / Docker env');
 }
+// В Docker переменные приходят из compose — отсутствие файла .env внутри контейнера нормально.
 
 export const loadedEnvPath = loaded;
