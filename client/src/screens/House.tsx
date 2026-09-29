@@ -38,7 +38,15 @@ export function SelectCompanyScreen() {
   return (
     <div className="shell-root">
       <div className="shell">
-        <Header title="Выбор УК" sub="Только управляющие компании из базы" />
+        <Header
+          title="Выбор УК"
+          sub="Только управляющие компании из базы"
+          back={
+            <button type="button" className="back-btn" onClick={() => navigate('/app/profile')}>
+              <ChevronLeft size={18} /> Назад
+            </button>
+          }
+        />
         <div className={`content pad house-pick${picked ? ' has-confirm' : ''}`}>
           <Field label="Поиск">
             <TextInput
@@ -79,7 +87,7 @@ export function SelectCompanyScreen() {
               setBusy(true)
               try {
                 await selectCompany(picked)
-                navigate('/')
+                navigate('/app')
               } finally {
                 setBusy(false)
               }
@@ -124,7 +132,7 @@ export function PrivateAddressScreen() {
           title="Мой адрес"
           sub="Видно только вам"
           back={
-            <button type="button" className="back-btn" onClick={() => navigate('/select-uk')}>
+            <button type="button" className="back-btn" onClick={() => navigate('/app/profile')}>
               <ChevronLeft size={18} /> Назад
             </button>
           }

@@ -163,11 +163,13 @@ export function ProfileScreen() {
           <ChevronRight size={16} />
         </button>
       ) : null}
-      <button type="button" className="menu-item" onClick={() => navigate('/onboarding')}>
-        <Home size={18} />
-        <span className="grow">Сменить УК</span>
-        <ChevronRight size={16} />
-      </button>
+      {user.role === 'resident' ? (
+        <button type="button" className="menu-item" onClick={() => navigate('/select-uk')}>
+          <Home size={18} />
+          <span className="grow">Сменить УК</span>
+          <ChevronRight size={16} />
+        </button>
+      ) : null}
       <button
         type="button"
         className="menu-item"

@@ -5,7 +5,7 @@ import { OnboardingScreen } from './screens/Onboarding'
 import { AdminPanelScreen } from './screens/Admin'
 import { ChatsScreen } from './screens/Chats'
 import { FeedScreen } from './screens/Feed'
-import { PrivateAddressScreen } from './screens/House'
+import { PrivateAddressScreen, SelectCompanyScreen } from './screens/House'
 import { ProfileScreen } from './screens/Profile'
 import { MyTicketsScreen } from './screens/Tickets'
 import { AppShell } from './screens/Shell'
@@ -118,8 +118,8 @@ export default function App() {
           <Route path="/" element={<HomeRedirect />} />
           <Route element={<NeedAuth />}>
             <Route path="/onboarding" element={<OnboardingRoute />} />
-            <Route path="/select-uk" element={<Navigate to="/onboarding" replace />} />
-            <Route path="/select-house" element={<Navigate to="/onboarding" replace />} />
+            <Route path="/select-uk" element={<SelectCompanyScreen />} />
+            <Route path="/select-house" element={<Navigate to="/select-uk" replace />} />
             <Route path="/address" element={<PrivateAddressScreen />} />
             <Route element={<NeedHouse />}>
               <Route path="/app" element={<AppShell />}>
