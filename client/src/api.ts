@@ -63,13 +63,29 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error || `Ошибка ${res.status}`)
+    const err = data as { error?: string; hint?: string; reason?: string }
+    const parts = [err.error || `Ошибка ${res.status}`]
+    if (err.hint) parts.push(err.hint)
+    throw new Error(parts.join('. '))
   }
   return data as T
 }
 
 export function getMaxInitData(): string {
-  return String(window.WebApp?.initData || '').trim()
+  const fromBridge = String(window.WebApp?.initData || '').trim()
+  if (fromBridge) return fromBridge
+
+  // Fallback: hash-фрагмент URL (#WebAppData=...)
+  try {
+    const raw = window.location.hash.startsWith('#')
+      ? window.location.hash.slice(1)
+      : window.location.hash
+    if (!raw) return ''
+    const params = new URLSearchParams(raw)
+    return String(params.get('WebAppData') || '').trim()
+  } catch {
+    return ''
+  }
 }
 
 export function getMaxPlatform(): string | null {

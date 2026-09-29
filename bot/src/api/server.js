@@ -40,7 +40,7 @@ import {
   attachPhoneFromMax,
   loginWithMaxUser,
   validateContactHash,
-  validateInitData,
+  validateInitDataDetailed,
 } from '../max-auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -127,15 +127,30 @@ function createServerRouter() {
     '/auth/max',
     asyncHandler(async (req, res) => {
       const initData = String(req.body?.initData || '');
-      const parsed = validateInitData(initData);
-      if (!parsed) {
-        res.status(401).json({ error: 'Невалидные данные MAX (initData)' });
+      const parsed = validateInitDataDetailed(initData);
+      if (!parsed.ok) {
+        const hints = {
+          no_bot_token: 'На сервере не задан BOT_TOKEN',
+          empty_init_data: 'Клиент не передал initData',
+          no_hash: 'В initData нет hash',
+          duplicate_hash: 'В initData несколько hash',
+          bad_hash: 'Подпись initData не совпала — проверьте BOT_TOKEN бота, к которому привязано мини-приложение',
+          no_auth_date: 'В initData нет auth_date',
+          expired: 'initData устарел (auth_date)',
+          no_user: 'В initData нет user.id',
+        };
+        console.warn('[auth/max] initData rejected:', parsed.reason);
+        res.status(401).json({
+          error: 'Невалидные данные MAX (initData)',
+          reason: parsed.reason,
+          hint: hints[parsed.reason] || null,
+        });
         return;
       }
-      const result = await loginWithMaxUser(parsed.user);
+      const result = await loginWithMaxUser(parsed.data.user);
       res.json({
         ...result,
-        startParam: parsed.startParam,
+        startParam: parsed.data.startParam,
         platform: req.body?.platform || null,
       });
     }),
