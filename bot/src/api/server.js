@@ -24,6 +24,7 @@ import {
   listHouses,
   listMessages,
   listParking,
+  listResidentsForUk,
   listTicketsForUser,
   listTopics,
   listWorks,
@@ -61,6 +62,16 @@ import { texts } from '../texts.js';
 import { updateUser } from '../db.js';
 import { ukMenuKeyboard } from '../keyboards.js';
 import { CONSENT_AGREEMENT_TEXT } from '../consent-text.js';
+import {
+  attachRealtime,
+  broadcastChatMessage,
+  broadcastParking,
+  broadcastResidents,
+  broadcastTicket,
+  broadcastTopic,
+  broadcastWorks,
+  getChatHouseId,
+} from '../realtime.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const docsDir = path.resolve(__dirname, '../../docs');
@@ -453,11 +464,20 @@ function createServerRouter() {
           hidden: true,
           system: true,
         });
+        const houseId = req.user.house_id || (await getChatHouseId(req.params.chatId));
+        broadcastChatMessage({ houseId, message: msg, excludeUserId: req.user.id });
         res.status(422).json({ error: check.reason, message: msg });
         return;
       }
       const message = await addMessage({ chatId: req.params.chatId, user: req.user, text });
       const chats = req.user.house_id ? await listChats(req.user.house_id) : [];
+      const houseId = req.user.house_id || (await getChatHouseId(req.params.chatId));
+      broadcastChatMessage({
+        houseId,
+        message,
+        chats,
+        excludeUserId: req.user.id,
+      });
       res.json({ message, chats });
     }),
   );
@@ -491,6 +511,29 @@ function createServerRouter() {
       const result = await createTopic(req.user, req.body || {});
       const refreshed = await getSessionUser(req.token);
       const data = await bootstrapForUser(refreshed || req.user);
+      if (req.user.house_id) {
+        broadcastTopic({
+          houseId: req.user.house_id,
+          topic: result.topic,
+          chats: data.chats,
+          excludeUserId: req.user.id,
+        });
+        if (result.chatId) {
+          const msgs = await listMessages(result.chatId);
+          const last = msgs[msgs.length - 1];
+          if (last) {
+            broadcastChatMessage({
+              houseId: req.user.house_id,
+              message: last,
+              chats: data.chats,
+              excludeUserId: req.user.id,
+            });
+          }
+        }
+      }
+      if (result.ticket) {
+        broadcastTicket(result.ticket, { excludeUserId: req.user.id });
+      }
       res.status(201).json({ ...result, ...data });
     }),
   );
@@ -519,7 +562,9 @@ function createServerRouter() {
         return;
       }
       const ticket = await createWebTicket(req.user, { title, description, category });
-      res.status(201).json({ ticket, tickets: await listTicketsForUser(req.user) });
+      const tickets = await listTicketsForUser(req.user);
+      broadcastTicket(ticket, { excludeUserId: req.user.id });
+      res.status(201).json({ ticket, tickets });
     }),
   );
 
@@ -528,6 +573,7 @@ function createServerRouter() {
     requireAuth,
     asyncHandler(async (req, res) => {
       const ticket = await setTicketStatus(req.user, req.params.id, req.body?.status);
+      broadcastTicket(ticket, { excludeUserId: req.user.id });
       res.json({ ticket });
     }),
   );
@@ -546,6 +592,7 @@ function createServerRouter() {
     requireAuth,
     asyncHandler(async (req, res) => {
       const ticket = await addTicketComment(req.user, req.params.id, req.body?.text || req.body?.body);
+      broadcastTicket(ticket, { excludeUserId: req.user.id });
       res.status(201).json({ ticket, tickets: await listTicketsForUser(req.user) });
     }),
   );
@@ -568,6 +615,9 @@ function createServerRouter() {
     requireAuth,
     asyncHandler(async (req, res) => {
       const parking = await claimParkingSpot(req.user, req.params.id);
+      if (req.user.house_id) {
+        broadcastParking({ houseId: req.user.house_id, parking, excludeUserId: req.user.id });
+      }
       res.json({ parking });
     }),
   );
@@ -577,6 +627,9 @@ function createServerRouter() {
     requireAuth,
     asyncHandler(async (req, res) => {
       const parking = await releaseParkingSpot(req.user, req.params.id);
+      if (req.user.house_id) {
+        broadcastParking({ houseId: req.user.house_id, parking, excludeUserId: req.user.id });
+      }
       res.json({ parking });
     }),
   );
@@ -586,6 +639,10 @@ function createServerRouter() {
     requireAuth,
     asyncHandler(async (req, res) => {
       const result = await appealParkingSpot(req.user, req.params.id);
+      if (result?.ticket) broadcastTicket(result.ticket, { excludeUserId: req.user.id });
+      if (req.user.house_id && result?.parking) {
+        broadcastParking({ houseId: req.user.house_id, parking: result.parking, excludeUserId: req.user.id });
+      }
       res.status(201).json(result);
     }),
   );
@@ -595,6 +652,9 @@ function createServerRouter() {
     requireAuth,
     asyncHandler(async (req, res) => {
       const parking = await setParkingActive(req.user, req.params.id, Boolean(req.body?.active));
+      if (req.user.house_id) {
+        broadcastParking({ houseId: req.user.house_id, parking, excludeUserId: req.user.id });
+      }
       res.json({ parking });
     }),
   );
@@ -617,6 +677,10 @@ function createServerRouter() {
     requireAuth,
     asyncHandler(async (req, res) => {
       const work = await setWorkStatus(req.user, req.params.id, req.body?.status);
+      if (req.user.house_id) {
+        const works = await listWorks(req.user.house_id);
+        broadcastWorks({ houseId: req.user.house_id, works, excludeUserId: req.user.id });
+      }
       res.json({ work });
     }),
   );
@@ -851,9 +915,11 @@ export function startApiServer(options = {}) {
   const port = config.apiPort;
   return new Promise((resolve) => {
     const server = app.listen(port, () => {
+      attachRealtime(server);
       console.log(`✅ HTTP на порту ${port}`);
       console.log(`   Webhook MAX:  POST /bot`);
       console.log(`   API фронта:   /server/*`);
+      console.log(`   WebSocket:    /server/ws`);
       resolve(server);
     });
   });

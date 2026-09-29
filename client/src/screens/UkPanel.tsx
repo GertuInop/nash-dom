@@ -1,13 +1,16 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { ChevronLeft, ShieldAlert } from 'lucide-react'
+import { ChevronLeft, ExternalLink, ShieldAlert, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { clientApi } from '../api'
+import { openMaxProfile } from '../max-utils'
 import { useAppStore, useUser } from '../store'
+import type { TicketStatus } from '../types'
 import { categoryLabel, EmptyState, Field, houseTitle, PrimaryButton, statusClass, statusLabel, TextArea } from '../ui'
 
 export function UkPanelScreen() {
   const user = useUser()
   const tickets = useAppStore((s) => s.tickets)
+  const residents = useAppStore((s) => s.residents)
   const houses = useAppStore((s) => s.houses)
   const applyBootstrap = useAppStore((s) => s.applyBootstrap)
   const setTicketStatus = useAppStore((s) => s.setTicketStatus)
@@ -40,9 +43,30 @@ export function UkPanelScreen() {
     }
   }, [applyBootstrap, setToast])
 
+  async function changeStatus(id: string, status: TicketStatus) {
+    setBusy(true)
+    try {
+      await setTicketStatus(id, status)
+      setToast({
+        type: 'success',
+        text:
+          status === 'rejected'
+            ? 'Заявка отклонена'
+            : status === 'done'
+              ? 'Заявка выполнена'
+              : 'Статус обновлён',
+      })
+    } catch (e) {
+      setToast({ type: 'error', text: e instanceof Error ? e.message : 'Не удалось сменить статус' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const nNew = tickets.filter((t) => t.status === 'new').length
   const nWork = tickets.filter((t) => t.status === 'in_progress').length
   const nDone = tickets.filter((t) => t.status === 'done').length
+  const residentOnly = residents.filter((r) => r.role === 'resident')
 
   return (
     <div className="pad">
@@ -65,7 +89,49 @@ export function UkPanelScreen() {
           <b>{nDone}</b>
           <span className="muted">Выполнено</span>
         </div>
+        <div className="stat">
+          <b>{residentOnly.length}</b>
+          <span className="muted">Жильцы</span>
+        </div>
       </div>
+
+      <h3>Жильцы ({residentOnly.length})</h3>
+      {loading ? (
+        <p className="muted">Загрузка…</p>
+      ) : residentOnly.length === 0 ? (
+        <EmptyState
+          icon={<Users size={36} />}
+          title="Пока никого нет"
+          text="Когда житель выберет вашу УК в боте или мини-приложении — он появится здесь сразу (без заявки на одобрение)."
+        />
+      ) : (
+        residentOnly.map((r) => (
+          <div key={r.id} className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <strong>{r.name}</strong>
+              {r.maxUserId || r.username ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() =>
+                    openMaxProfile({
+                      maxProfileUrl: r.maxProfileUrl,
+                      username: r.username,
+                      maxUserId: r.maxUserId,
+                    })
+                  }
+                >
+                  <ExternalLink size={14} /> MAX
+                </button>
+              ) : null}
+            </div>
+            <div className="muted">{r.phone || 'телефон не указан'}</div>
+            {r.address ? <div className="hint">{r.address}</div> : null}
+            {r.personalAccount ? <div className="hint">Л/с: {r.personalAccount}</div> : null}
+          </div>
+        ))
+      )}
+
       <h3>Заявки (бот + мини-приложение)</h3>
       {loading ? (
         <p className="muted">Загрузка заявок…</p>
@@ -92,24 +158,55 @@ export function UkPanelScreen() {
             <div className="hint">
               {categoryLabel(t.category)} · {t.author} · {t.createdAt}
             </div>
+            {t.authorMaxUserId || t.authorUsername ? (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ marginTop: 6 }}
+                onClick={() =>
+                  openMaxProfile({
+                    maxProfileUrl: t.authorMaxProfileUrl,
+                    username: t.authorUsername,
+                    maxUserId: t.authorMaxUserId,
+                  })
+                }
+              >
+                <ExternalLink size={14} /> Профиль жителя
+              </button>
+            ) : null}
             {t.ukComment ? <div className="hint">Комментарий УК: {t.ukComment}</div> : null}
             <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               {t.status === 'new' ? (
                 <button
                   type="button"
                   className="btn btn-ghost"
-                  onClick={() => setTicketStatus(t.id, 'in_progress')}
+                  disabled={busy}
+                  onClick={() => void changeStatus(t.id, 'in_progress')}
                 >
                   Принять в работу
                 </button>
               ) : null}
-              {t.status === 'in_progress' ? (
+              {t.status === 'in_progress' || t.status === 'new' ? (
                 <button
                   type="button"
                   className="btn btn-ghost"
-                  onClick={() => setTicketStatus(t.id, 'done')}
+                  disabled={busy}
+                  onClick={() => void changeStatus(t.id, 'done')}
                 >
                   Выполнено
+                </button>
+              ) : null}
+              {t.status !== 'rejected' && t.status !== 'done' ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={busy}
+                  onClick={() => {
+                    if (!window.confirm('Отклонить заявку?')) return
+                    void changeStatus(t.id, 'rejected')
+                  }}
+                >
+                  Отклонить
                 </button>
               ) : null}
               <button

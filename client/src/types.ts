@@ -2,7 +2,7 @@ export type UserRole = 'resident' | 'uk' | 'admin'
 
 export type ChatType = 'general' | 'uk' | 'topic'
 
-export type TicketStatus = 'new' | 'in_progress' | 'done'
+export type TicketStatus = 'new' | 'in_progress' | 'done' | 'rejected'
 
 export type TopicCategory =
   | 'accident'
@@ -116,6 +116,19 @@ export interface Topic {
   photoUrl?: string
 }
 
+export interface CompanyMember {
+  id: string
+  name: string
+  phone: string
+  role: string
+  username?: string
+  maxUserId?: string
+  maxProfileUrl?: string
+  city?: string
+  address?: string
+  personalAccount?: string
+}
+
 export interface Ticket {
   id: string
   publicNumber?: string
@@ -129,6 +142,9 @@ export interface Ticket {
   createdAt: string
   authorId: string
   author: string
+  authorMaxUserId?: string
+  authorUsername?: string
+  authorMaxProfileUrl?: string
   ukComment?: string
   companyId?: string
   messages?: { id: string; role: string; body: string; createdAt: string }[]

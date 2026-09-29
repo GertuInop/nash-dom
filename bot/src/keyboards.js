@@ -84,7 +84,7 @@ export function ukMenuKeyboard(isApproved) {
   return inlineKeyboard([
     ...miniappOpenRow(),
     [button.callback('📥 Входящие заявки', 'uk:incoming')],
-    [button.callback('👥 Заявки жильцов', 'uk:resident_joins')],
+    [button.callback('👥 Жильцы', 'uk:resident_joins')],
     [button.callback('📢 Рассылка жителям', 'uk:broadcast')],
     [button.callback('💧 Отключения воды', 'uk:water')],
     [button.callback('🅿️ Парковка', 'uk:parking')],

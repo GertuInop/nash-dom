@@ -117,6 +117,7 @@ export async function getRequestById(id) {
             u.first_name AS resident_first_name,
             u.last_name AS resident_last_name,
             u.phone AS resident_phone,
+            u.username AS resident_username,
             mc.name AS company_name
      FROM requests r
      JOIN users u ON u.id = r.user_id

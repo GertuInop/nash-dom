@@ -1,5 +1,5 @@
 import { ChevronLeft, MessageCircle, Send } from 'lucide-react'
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAppStore, useUser } from '../store'
 import { EmptyState } from '../ui'
@@ -52,6 +52,11 @@ function Thread({ chatId }: { chatId: string }) {
   const messages = messagesAll.filter((m) => m.chatId === chatId)
   const chat = chats.find((c) => c.id === chatId)
   const navigate = useNavigate()
+  const bottomRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [messages.length, chatId])
 
   if (!chat) {
     return <EmptyState icon={<MessageCircle size={40} />} title="Чат не найден" text="" />
@@ -70,7 +75,7 @@ function Thread({ chatId }: { chatId: string }) {
         </button>
         <div className="grow">
           <h2>{chat.name}</h2>
-          <div className="sub">{chat.type === 'topic' ? 'Тема дома' : 'Чат дома'}</div>
+          <div className="sub">{chat.type === 'topic' ? 'Тема дома' : 'Чат дома'} · онлайн</div>
         </div>
       </header>
       <div className="content">
@@ -97,6 +102,7 @@ function Thread({ chatId }: { chatId: string }) {
               </div>
             ))
           )}
+          <div ref={bottomRef} />
         </div>
       </div>
       <ChatComposer chatId={chatId} />

@@ -8,6 +8,7 @@ export default defineConfig({
       '/server': {
         target: 'http://127.0.0.1:3080',
         changeOrigin: true,
+        ws: true,
       },
     },
   },

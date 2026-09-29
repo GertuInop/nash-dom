@@ -50,7 +50,7 @@ export function SelectCompanyScreen() {
           <div style={{ marginTop: 14 }}>
             {list.length === 0 ? (
               <p className="muted">
-                Пока нет одобренных УК. Подключение УК идёт через бота «Наш дом» в MAX.
+                Пока нет УК в базе. Руководитель регистрирует УК через бота «Наш дом» — доступ открывается сразу.
               </p>
             ) : null}
             {byCity.map(([city, items]) => (

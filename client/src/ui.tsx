@@ -177,12 +177,14 @@ export function categoryLabel(id: string) {
 export function statusLabel(status: string) {
   if (status === 'new') return 'Новая'
   if (status === 'in_progress') return 'В работе'
+  if (status === 'rejected') return 'Отклонена'
   return 'Выполнена'
 }
 
 export function statusClass(status: string) {
   if (status === 'new') return 'badge badge-new'
   if (status === 'in_progress') return 'badge badge-work'
+  if (status === 'rejected') return 'badge badge-rejected'
   return 'badge badge-done'
 }
 

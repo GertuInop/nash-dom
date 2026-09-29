@@ -19,6 +19,8 @@ interface MaxWebApp {
   version?: string
   ready?: () => void
   expand?: () => void
+  openLink?: (url: string) => void
+  openMaxLink?: (url: string) => void
 }
 
 interface Window {

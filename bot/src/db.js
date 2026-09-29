@@ -92,6 +92,9 @@ export async function ensureSchema() {
 
   const { ensureAdminSchema } = await import('./admin-db.js');
   await ensureAdminSchema();
+
+  // На текущем этапе хакатона: без ручных одобрений
+  await autoApproveAllPendingAccess();
 }
 
 async function ensureResidentJoinSchema() {
@@ -524,6 +527,81 @@ export async function createResidentUkRequest(userId, companyId) {
   return getResidentUkRequestById(result.insertId);
 }
 
+/** Сразу подключить жителя к УК (без ожидания одобрения руководителя). */
+export async function joinResidentToCompany(userId, companyId) {
+  await pool.execute(
+    `UPDATE resident_uk_requests
+     SET status = 'cancelled'
+     WHERE user_id = :userId AND status = 'pending'`,
+    { userId },
+  );
+
+  const [result] = await pool.execute(
+    `INSERT INTO resident_uk_requests (user_id, company_id, status)
+     VALUES (:userId, :companyId, 'approved')`,
+    { userId, companyId },
+  );
+
+  await updateUser(userId, {
+    company_id: companyId,
+    onboarding_step: 'done',
+    flow_step: null,
+    flow_json: null,
+  });
+
+  return getResidentUkRequestById(result.insertId);
+}
+
+/** Жители + сотрудники, привязанные к УК (для кабинета руководителя). */
+export async function listCompanyUsers(companyId) {
+  const [rows] = await pool.execute(
+    `SELECT u.id, u.max_user_id, u.username, u.first_name, u.last_name, u.phone,
+            u.role, u.city_slug, u.registration_address, u.personal_account,
+            u.street, u.entrance, u.flat, u.created_at
+     FROM users u
+     WHERE u.company_id = :companyId
+     ORDER BY
+       CASE u.role WHEN 'uk' THEN 0 ELSE 1 END,
+       u.first_name ASC, u.last_name ASC`,
+    { companyId },
+  );
+  return rows;
+}
+
+/** Принудительно активировать УК пользователя (хакатон: без админ-одобрения). */
+export async function activateUkCompany(userId, companyId) {
+  if (!companyId) return;
+  await pool.execute(
+    `UPDATE management_companies SET status = 'approved' WHERE id = :id`,
+    { id: companyId },
+  );
+  await updateUser(userId, { uk_status: 'approved', onboarding_step: 'done' });
+}
+
+/** Одноразово / при старте: одобрить всё, что висело в pending. */
+export async function autoApproveAllPendingAccess() {
+  await pool.execute(
+    `UPDATE management_companies SET status = 'approved' WHERE status = 'pending'`,
+  );
+  await pool.execute(
+    `UPDATE users SET uk_status = 'approved' WHERE role = 'uk' AND uk_status = 'pending'`,
+  );
+
+  const [pendingJoins] = await pool.execute(
+    `SELECT id, user_id, company_id FROM resident_uk_requests WHERE status = 'pending'`,
+  );
+  for (const row of pendingJoins) {
+    await pool.execute(
+      `UPDATE resident_uk_requests SET status = 'approved' WHERE id = :id`,
+      { id: row.id },
+    );
+    await updateUser(row.user_id, {
+      company_id: row.company_id,
+      onboarding_step: 'done',
+    });
+  }
+}
+
 export async function getResidentUkRequestById(id) {
   const [rows] = await pool.execute(
     `SELECT r.*,
@@ -712,11 +790,15 @@ export async function saveUkAddress(userId, companyId, address) {
   try {
     await connection.beginTransaction();
     await connection.execute(
-      'UPDATE management_companies SET address = :address WHERE id = :companyId',
+      `UPDATE management_companies
+       SET address = :address, status = 'approved'
+       WHERE id = :companyId`,
       { address, companyId },
     );
     await connection.execute(
-      `UPDATE users SET onboarding_step = 'done' WHERE id = :userId`,
+      `UPDATE users
+       SET onboarding_step = 'done', uk_status = 'approved'
+       WHERE id = :userId`,
       { userId },
     );
     await connection.execute(

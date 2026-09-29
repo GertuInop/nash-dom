@@ -1,5 +1,6 @@
 import type {
   Chat,
+  CompanyMember,
   EntranceWork,
   House,
   Message,
@@ -44,6 +45,7 @@ export interface BootstrapPayload {
   tickets: Ticket[]
   works: EntranceWork[]
   parking?: ParkingSpot[]
+  residents?: CompanyMember[]
   token?: string
 }
 

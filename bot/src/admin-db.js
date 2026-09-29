@@ -27,12 +27,23 @@ async function columnExists(table, column) {
   return Number(rows[0]?.cnt) > 0;
 }
 
+function maxProfileFields(maxUserId, username) {
+  const id = maxUserId ? String(maxUserId) : null;
+  const uname = username ? String(username).replace(/^@/, '') : null;
+  return {
+    maxUserId: id,
+    username: uname,
+    maxProfileUrl: id ? `max://user/${id}` : null,
+    maxPublicUrl: uname ? `https://max.ru/${uname}` : null,
+  };
+}
+
 function mapUserRow(u) {
   if (!u) return null;
+  const profile = maxProfileFields(u.max_user_id, u.username);
   return {
     id: String(u.id),
-    maxUserId: u.max_user_id ? String(u.max_user_id) : null,
-    username: u.username || null,
+    ...profile,
     name: [u.first_name, u.last_name].filter(Boolean).join(' ') || u.full_name || 'Пользователь',
     phone: u.phone || '',
     role: u.role || 'resident',
@@ -42,7 +53,6 @@ function mapUserRow(u) {
     houseId: u.house_id || null,
     blocked: Boolean(u.is_blocked),
     ukStatus: u.uk_status || 'none',
-    maxProfileUrl: u.max_user_id ? `max://user/${u.max_user_id}` : null,
   };
 }
 
@@ -58,13 +68,11 @@ function mapCompanyRow(c, residents = []) {
     createdAt: c.created_at,
     manager: {
       userId: c.manager_user_id ? String(c.manager_user_id) : null,
-      maxUserId: c.manager_max_user_id ? String(c.manager_max_user_id) : null,
       name: [c.manager_first_name, c.manager_last_name].filter(Boolean).join(' ')
         || c.manager_username
         || '—',
-      username: c.manager_username || null,
       phone: c.manager_phone || '',
-      maxProfileUrl: c.manager_max_user_id ? `max://user/${c.manager_max_user_id}` : null,
+      ...maxProfileFields(c.manager_max_user_id, c.manager_username),
     },
     residentsCount: residents.length,
     residents,
@@ -127,13 +135,11 @@ export async function listPendingUkForAdmin() {
     status: item.status,
     createdAt: item.created_at,
     manager: {
-      maxUserId: item.max_user_id ? String(item.max_user_id) : null,
       name: [item.first_name, item.last_name].filter(Boolean).join(' ')
         || item.username
         || '—',
-      username: item.username || null,
       phone: item.manager_phone || '',
-      maxProfileUrl: item.max_user_id ? `max://user/${item.max_user_id}` : null,
+      ...maxProfileFields(item.max_user_id, item.username),
     },
   }));
 }

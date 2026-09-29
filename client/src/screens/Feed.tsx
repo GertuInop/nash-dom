@@ -66,12 +66,14 @@ export function FeedScreen() {
   const user = useUser()
   const topics = useAppStore((s) => s.topics)
   const houses = useAppStore((s) => s.houses)
+  const ticketsAll = useAppStore((s) => s.tickets)
   const [filter, setFilter] = useState<'all' | TopicCategory>('all')
   const [fabOpen, setFabOpen] = useState(false)
   const [ticketOpen, setTicketOpen] = useState(false)
   const navigate = useNavigate()
   const house = houses.find((h) => h.id === user?.houseId)
   const mine = topics.filter((t) => t.houseId === user?.houseId)
+  const myTickets = ticketsAll.filter((t) => String(t.authorId) === String(user?.id))
   const list = useMemo(
     () => (filter === 'all' ? mine : mine.filter((t) => t.category === filter)),
     [filter, mine],
@@ -96,6 +98,24 @@ export function FeedScreen() {
             </span>
           </button>
         </div>
+        {user?.role === 'resident' ? (
+          <button
+            type="button"
+            className="house-teaser"
+            style={{ width: '100%', marginTop: 10 }}
+            onClick={() => navigate('/app/tickets')}
+          >
+            <ClipboardList size={28} />
+            <span>
+              <strong>Мои обращения</strong>
+              <span>
+                {myTickets.length
+                  ? `${myTickets.length} заявок · открыть список`
+                  : 'Заявки в УК из бота и мини-приложения'}
+              </span>
+            </span>
+          </button>
+        ) : null}
         <div className="chips">
           <button
             type="button"

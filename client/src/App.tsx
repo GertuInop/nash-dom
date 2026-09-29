@@ -5,12 +5,14 @@ import { AdminPanelScreen } from './screens/Admin'
 import { ChatsScreen } from './screens/Chats'
 import { FeedScreen } from './screens/Feed'
 import { PrivateAddressScreen, SelectCompanyScreen } from './screens/House'
-import { MyTicketsScreen, ProfileScreen } from './screens/Profile'
+import { ProfileScreen } from './screens/Profile'
+import { MyTicketsScreen } from './screens/Tickets'
 import { AppShell } from './screens/Shell'
 import { BuildingScreen } from './screens/Building'
 import { ParkingScreen } from './screens/Parking'
 import { TopicsScreen } from './screens/Topics'
 import { UkPanelScreen } from './screens/UkPanel'
+import { connectRealtime, disconnectRealtime, setRealtimeHandler, syncRealtimeRooms } from './realtime'
 import { useAppStore, useUser } from './store'
 
 function ToastHost() {
@@ -66,10 +68,28 @@ function HomeScreen() {
 function Bootstrap({ children }: { children: React.ReactNode }) {
   const ready = useAppStore((s) => s.ready)
   const hydrate = useAppStore((s) => s.hydrate)
+  const token = useAppStore((s) => s.token)
+  const user = useUser()
+  const handleRealtime = useAppStore((s) => s.handleRealtime)
 
   useEffect(() => {
     void hydrate()
   }, [hydrate])
+
+  useEffect(() => {
+    setRealtimeHandler(handleRealtime)
+    return () => setRealtimeHandler(null)
+  }, [handleRealtime])
+
+  useEffect(() => {
+    if (!ready || !token || !user) {
+      disconnectRealtime()
+      return
+    }
+    syncRealtimeRooms(user.houseId, user.companyId)
+    connectRealtime()
+    return () => disconnectRealtime()
+  }, [ready, token, user?.id, user?.houseId, user?.companyId])
 
   if (!ready) {
     return (

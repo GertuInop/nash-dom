@@ -7,22 +7,20 @@ import {
   Users,
 } from 'lucide-react'
 import { clientApi } from '../api'
+import { openMaxProfile } from '../max-utils'
 import { useAppStore, useUser } from '../store'
 import { EmptyState, Field, PrimaryButton, TextInput } from '../ui'
 
 type AdminTab = 'requests' | 'companies' | 'users' | 'tickets'
 
-function openMaxProfile(url?: string | null) {
-  if (!url) return
-  try {
-    if (window.WebApp && typeof (window.WebApp as { openLink?: (u: string) => void }).openLink === 'function') {
-      ;(window.WebApp as { openLink: (u: string) => void }).openLink(url)
-      return
-    }
-  } catch {
-    /* fall through */
-  }
-  window.location.href = url
+function openPerson(person?: {
+  maxProfileUrl?: string | null
+  maxPublicUrl?: string | null
+  username?: string | null
+  maxUserId?: string | null
+} | null) {
+  if (!person) return
+  openMaxProfile(person)
 }
 
 function StatusPill({ status }: { status: string }) {
@@ -183,6 +181,22 @@ export function AdminPanelScreen() {
                 <p className="muted">{t.description}</p>
                 <div className="hint">{t.author} · {t.address}</div>
                 <div className="hint">{t.createdAt}</div>
+                {t.authorMaxUserId || t.authorUsername ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ marginTop: 8 }}
+                    onClick={() =>
+                      openMaxProfile({
+                        maxProfileUrl: t.authorMaxProfileUrl,
+                        username: t.authorUsername,
+                        maxUserId: t.authorMaxUserId,
+                      })
+                    }
+                  >
+                    <ExternalLink size={14} /> Профиль жителя
+                  </button>
+                ) : null}
               </div>
             ))
           )}
@@ -212,11 +226,11 @@ export function AdminPanelScreen() {
                   {item.manager?.phone ? ` · ${item.manager.phone}` : ''}
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-                  {item.manager?.maxProfileUrl ? (
+                  {item.manager?.maxProfileUrl || item.manager?.username || item.manager?.maxUserId ? (
                     <button
                       type="button"
                       className="btn btn-ghost"
-                      onClick={() => openMaxProfile(item.manager.maxProfileUrl)}
+                      onClick={() => openPerson(item.manager)}
                     >
                       <ExternalLink size={14} /> Профиль в MAX
                     </button>
@@ -273,12 +287,12 @@ export function AdminPanelScreen() {
                 <h3 style={{ marginTop: 14 }}>Руководитель</h3>
                 <div>{selectedCompany.manager?.name}</div>
                 <div className="muted">{selectedCompany.manager?.phone || 'нет телефона'}</div>
-                {selectedCompany.manager?.maxProfileUrl ? (
+                {selectedCompany.manager?.maxProfileUrl || selectedCompany.manager?.username || selectedCompany.manager?.maxUserId ? (
                   <button
                     type="button"
                     className="btn btn-ghost"
                     style={{ marginTop: 8 }}
-                    onClick={() => openMaxProfile(selectedCompany.manager.maxProfileUrl)}
+                    onClick={() => openPerson(selectedCompany.manager)}
                   >
                     <ExternalLink size={14} /> Профиль руководителя в MAX
                   </button>
@@ -414,8 +428,8 @@ function UserAdminCard({
       <div className="muted">{u.phone || 'нет телефона'}</div>
       <div className="muted">УК: {u.companyName || 'не привязан'}</div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-        {u.maxProfileUrl ? (
-          <button type="button" className="btn btn-ghost" onClick={() => openMaxProfile(u.maxProfileUrl)}>
+        {u.maxProfileUrl || u.username || u.maxUserId ? (
+          <button type="button" className="btn btn-ghost" onClick={() => openPerson(u)}>
             <ExternalLink size={14} /> MAX
           </button>
         ) : null}

@@ -1,16 +1,14 @@
 import { ChevronLeft, ChevronRight, Home, LogOut, MapPin, Ticket } from 'lucide-react'
-import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { clientApi } from '../api'
 import { useAppStore, useUser } from '../store'
-import { houseTitle, statusClass, statusLabel } from '../ui'
+import { houseTitle } from '../ui'
 
 export function ProfileScreen() {
   const user = useUser()
   const logout = useAppStore((s) => s.logout)
   const ticketsAll = useAppStore((s) => s.tickets)
   const houses = useAppStore((s) => s.houses)
-  const tickets = ticketsAll.filter((t) => t.authorId === user?.id)
+  const tickets = ticketsAll.filter((t) => String(t.authorId) === String(user?.id))
   const house = houses.find((h) => h.id === user?.houseId)
   const navigate = useNavigate()
   if (!user) return null
@@ -62,20 +60,20 @@ export function ProfileScreen() {
           </div>
         ) : null}
       </div>
+      {user.role === 'resident' || user.role === 'uk' ? (
+        <button type="button" className="menu-item" onClick={() => navigate('/app/tickets')}>
+          <Ticket size={18} />
+          <span className="grow">{user.role === 'uk' ? 'Заявки УК' : 'Мои обращения'}</span>
+          <span className="muted">{user.role === 'uk' ? ticketsAll.length : tickets.length}</span>
+          <ChevronRight size={16} />
+        </button>
+      ) : null}
       {user.role === 'resident' ? (
-        <>
-          <button type="button" className="menu-item" onClick={() => navigate('/app/tickets')}>
-            <Ticket size={18} />
-            <span className="grow">Мои обращения</span>
-            <span className="muted">{tickets.length}</span>
-            <ChevronRight size={16} />
-          </button>
-          <button type="button" className="menu-item" onClick={() => navigate('/address')}>
-            <MapPin size={18} />
-            <span className="grow">Мой адрес</span>
-            <ChevronRight size={16} />
-          </button>
-        </>
+        <button type="button" className="menu-item" onClick={() => navigate('/address')}>
+          <MapPin size={18} />
+          <span className="grow">Мой адрес</span>
+          <ChevronRight size={16} />
+        </button>
       ) : null}
       <button type="button" className="menu-item" onClick={() => navigate('/select-uk')}>
         <Home size={18} />
@@ -97,38 +95,4 @@ export function ProfileScreen() {
   )
 }
 
-export function MyTicketsScreen() {
-  const user = useUser()
-  const ticketsAll = useAppStore((s) => s.tickets)
-  const applyBootstrap = useAppStore((s) => s.applyBootstrap)
-  const tickets = ticketsAll.filter((t) => String(t.authorId) === String(user?.id))
-  const navigate = useNavigate()
-
-  useEffect(() => {
-    void clientApi.me().then((data) => applyBootstrap(data)).catch(() => {})
-  }, [applyBootstrap])
-
-  return (
-    <div className="pad">
-      <button type="button" className="back-btn" onClick={() => navigate('/app/profile')}>
-        <ChevronLeft size={18} /> Назад
-      </button>
-      {tickets.length === 0 ? (
-        <p className="muted">Обращений нет. Тема «Авария» или «Качество услуг» создаёт заявку УК.</p>
-      ) : (
-        tickets.map((t) => (
-          <div key={t.id} className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <strong>№{t.publicNumber || t.id}</strong>
-              <span className={statusClass(t.status)}>{statusLabel(t.status)}</span>
-            </div>
-            <h3>{t.title}</h3>
-            <p className="muted">{t.description}</p>
-            <div className="hint">{t.address}</div>
-            {t.ukComment ? <div className="hint">Ответ УК: {t.ukComment}</div> : null}
-          </div>
-        ))
-      )}
-    </div>
-  )
-}
+export { MyTicketsScreen } from './Tickets'

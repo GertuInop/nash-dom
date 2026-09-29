@@ -1,20 +1,21 @@
 import { findBestCityMatch, isValidEmail, normalizePhone } from './cities.js';
 import {
   acceptConsent,
+  activateUkCompany,
   cancelPendingResidentUkRequest,
   changeResidentCity,
   clearPendingCity,
   confirmCityForResident,
   confirmCityForUk,
-  createResidentUkRequest,
   decideResidentUkRequest,
   ensureUser,
   getCompanyById,
   getPendingResidentUkRequest,
   getPrimaryAddress,
   getResidentUkRequestById,
+  joinResidentToCompany,
   listCities,
-  listPendingResidentUkRequests,
+  listCompanyUsers,
   listPendingUkRequests,
   listUkManagerMaxIds,
   saveResidentAddress,
@@ -373,9 +374,8 @@ export async function handleUkPick(ctx, companyId) {
     return ctx.reply('Эта УК недоступна для вашего города. Попробуйте поиск ещё раз.');
   }
 
-  const request = await createResidentUkRequest(user.id, company.id);
-  await updateUser(user.id, { flow_step: null, flow_json: null, onboarding_step: 'done' });
-  await ctx.answerOnCallback({ notification: 'Заявка отправлена' });
+  await joinResidentToCompany(user.id, company.id);
+  await ctx.answerOnCallback({ notification: 'УК подключена' });
 
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Житель';
   const safeName = escapeHtml(name);
@@ -388,17 +388,14 @@ export async function handleUkPick(ctx, companyId) {
     try {
       await ctx.api.sendMessageToUser(
         maxId,
-        `👥 <b>Заявка жильца на подключение</b>\n\n`
+        `👥 <b>К вашей УК присоединился житель</b>\n\n`
         + `<b>УК:</b> ${escapeHtml(company.name)}\n`
         + `<b>Город:</b> ${escapeHtml(user.city_slug || '—')}\n`
         + `<b>Адрес:</b> ${escapeHtml(user.registration_address || '—')}\n`
         + `<b>Телефон:</b> ${escapeHtml(user.phone || '—')}\n`
         + `<b>Л/с:</b> ${escapeHtml(user.personal_account || '—')}\n\n`
         + profileLink,
-        {
-          format: 'html',
-          attachments: [residentJoinKeyboard(request.id)],
-        },
+        { format: 'html' },
       );
     } catch (error) {
       console.error('Не удалось уведомить УК о жильце:', error.message);
@@ -406,10 +403,10 @@ export async function handleUkPick(ctx, companyId) {
   }
 
   await ctx.reply(
-    `Заявка в УК «${company.name}» отправлена руководителю.\nОжидайте одобрения.`,
+    `Вы подключены к УК «${company.name}». Доступны все функции жителя.`,
     { format: 'markdown' },
   );
-  return showHome(ctx, { ...user, company_id: null, onboarding_step: 'done' });
+  return showHome(ctx, { ...user, company_id: company.id, onboarding_step: 'done' });
 }
 
 export async function handleResidentJoinStatus(ctx) {
@@ -435,17 +432,26 @@ export async function handleResidentJoinCancel(ctx) {
 
 export async function handleUkResidentJoins(ctx) {
   const user = await getOrCreateUser(ctx);
-  await ctx.answerOnCallback({ notification: 'Заявки жильцов' });
+  await ctx.answerOnCallback({ notification: 'Жильцы' });
   if (user.role !== 'uk' || user.uk_status !== 'approved' || !user.company_id) {
     return ctx.reply('Доступно только одобренной УК.');
   }
 
-  const items = await listPendingResidentUkRequests(user.company_id);
-  if (!items.length) {
-    return ctx.reply('Новых заявок от жильцов нет.', replyOpts(homeNavKeyboard()));
+  const items = await listCompanyUsers(user.company_id);
+  const residents = items.filter((item) => item.role !== 'uk');
+  if (!residents.length) {
+    return ctx.reply(
+      'Пока никто не подключился к вашей УК.\nКогда житель выберет вас в боте или мини-приложении — он появится здесь.',
+      replyOpts(homeNavKeyboard()),
+    );
   }
 
-  for (const item of items) {
+  await ctx.reply(`👥 Жители вашей УК: *${residents.length}*`, {
+    format: 'markdown',
+    ...replyOpts(homeNavKeyboard()),
+  });
+
+  for (const item of residents) {
     const name = [item.first_name, item.last_name].filter(Boolean).join(' ') || 'Житель';
     const safeName = escapeHtml(name);
     const profileLink = item.max_user_id
@@ -453,16 +459,11 @@ export async function handleUkResidentJoins(ctx) {
       : safeName;
 
     await ctx.reply(
-      `👥 <b>Заявка #${item.id}</b>\n\n`
-      + `<b>Город:</b> ${escapeHtml(item.city_slug || '—')}\n`
-      + `<b>Адрес:</b> ${escapeHtml(item.registration_address || '—')}\n`
+      `👤 ${profileLink}\n`
       + `<b>Телефон:</b> ${escapeHtml(item.phone || '—')}\n`
-      + `<b>Л/с:</b> ${escapeHtml(item.personal_account || '—')}\n\n`
-      + profileLink,
-      {
-        format: 'html',
-        attachments: [residentJoinKeyboard(item.id)],
-      },
+      + `<b>Адрес:</b> ${escapeHtml(item.registration_address || '—')}\n`
+      + `<b>Л/с:</b> ${escapeHtml(item.personal_account || '—')}`,
+      { format: 'html' },
     );
   }
 }
@@ -597,7 +598,12 @@ export async function handleTextMessage(ctx) {
       return ctx.reply('Адрес слишком короткий. Укажите адрес офиса ещё раз.');
     }
     await saveUkAddress(user.id, user.company_id, text);
-    return ctx.reply(texts.ukPending, replyOpts(ukMenuKeyboard(false)));
+    await ctx.reply(texts.ukReady);
+    return showHome(ctx, {
+      ...user,
+      onboarding_step: 'done',
+      uk_status: 'approved',
+    });
   }
 
   if (user.onboarding_step !== 'done') {
@@ -784,19 +790,18 @@ export async function handleUnlinkCancel(ctx) {
 
 export async function handleUkStatus(ctx) {
   const user = await getOrCreateUser(ctx);
-  await ctx.answerOnCallback({ notification: 'Статус заявки' });
-  const company = await getCompanyById(user.company_id);
-  const statusMap = {
-    pending: 'ожидает одобрения',
-    approved: 'одобрена',
-    rejected: 'отклонена',
-  };
-  const status = statusMap[user.uk_status] || user.uk_status;
+  await ctx.answerOnCallback({ notification: 'Статус' });
+
+  if (user.role === 'uk' && user.company_id && user.uk_status !== 'approved') {
+    await activateUkCompany(user.id, user.company_id);
+  }
+  const fresh = await getOrCreateUser(ctx);
+  const company = await getCompanyById(fresh.company_id);
   return ctx.reply(
     `🏢 *${company?.name || 'УК'}*
-*Город:* ${company?.city_slug || user.city_slug || 'не указан'}
-Статус заявки: *${status}*`,
-    replyOpts(homeNavKeyboard()),
+*Город:* ${company?.city_slug || fresh.city_slug || 'не указан'}
+Статус: *активна* — кабинет УК открыт.`,
+    replyOpts(ukMenuKeyboard(true)),
   );
 }
 

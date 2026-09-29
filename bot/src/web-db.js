@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { pool, updateUser } from './db.js';
-import { createRequest, getRequestById, listResidentRequests, listCompanyRequests, updateRequestStatus } from './tickets-db.js';
+import { createRequest, getRequestById, updateRequestStatus } from './tickets-db.js';
 
 const HOUSE_SEED = [];
 
@@ -593,6 +593,8 @@ export async function selectUserCompany(userId, companyId) {
 
   const house = await ensureHouseForCompany(company);
   const user = await findUserById(userId);
+  const prevCompanyId = user.company_id ? Number(user.company_id) : null;
+
   await updateUser(userId, {
     company_id: company.id,
     house_id: house.id,
@@ -600,6 +602,46 @@ export async function selectUserCompany(userId, companyId) {
     city_slug: company.city_slug || user.city_slug,
     skipped_address: user.role === 'uk' ? 1 : user.skipped_address || 0,
   });
+
+  // История присоединения жителя + уведомление УК
+  if (user.role === 'resident' && prevCompanyId !== Number(company.id)) {
+    try {
+      const { listUkManagerMaxIds } = await import('./db.js');
+      await pool.execute(
+        `UPDATE resident_uk_requests
+         SET status = 'cancelled'
+         WHERE user_id = :userId AND status = 'pending'`,
+        { userId },
+      ).catch(() => {});
+      await pool.execute(
+        `INSERT INTO resident_uk_requests (user_id, company_id, status)
+         VALUES (:userId, :companyId, 'approved')`,
+        { userId, companyId: company.id },
+      ).catch(() => {});
+
+      const { notifyMaxUser } = await import('./notify.js');
+      const managers = await listUkManagerMaxIds(company.id);
+      const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Житель';
+      for (const maxId of managers) {
+        await notifyMaxUser(
+          maxId,
+          `👥 К вашей УК «${company.name}» присоединился житель: *${name}*${user.phone ? ` (${user.phone})` : ''}`,
+        );
+      }
+
+      try {
+        const { broadcastResidents } = await import('./realtime.js');
+        const freshUser = await findUserById(userId);
+        const residents = await listResidentsForUk(freshUser);
+        broadcastResidents({ companyId: company.id, residents, excludeUserId: userId });
+      } catch {
+        /* ignore */
+      }
+    } catch (error) {
+      console.warn('[selectUserCompany notify]', error?.message || error);
+    }
+  }
+
   return findUserById(userId);
 }
 
@@ -610,20 +652,37 @@ export async function ensureUserHouseFromCompany(user) {
   // Руководитель УК без company_id — найти компанию, которую он создал
   if (user.role === 'uk' && !user.company_id) {
     const [owned] = await pool.execute(
-      `SELECT id, name FROM management_companies
+      `SELECT id, name, status FROM management_companies
        WHERE requested_by_user_id = :uid
        ORDER BY FIELD(status, 'approved', 'pending', 'blocked', 'rejected'), id DESC
        LIMIT 1`,
       { uid: user.id },
     );
     if (owned[0]) {
+      // Автоодобрение pending УК на этапе хакатона
+      if (owned[0].status === 'pending') {
+        await pool.execute(
+          `UPDATE management_companies SET status = 'approved' WHERE id = :id`,
+          { id: owned[0].id },
+        );
+      }
       await updateUser(user.id, {
         company_id: owned[0].id,
         uk_name: owned[0].name,
-        uk_status: user.uk_status === 'none' ? 'approved' : user.uk_status,
+        uk_status: 'approved',
       });
       user = await findUserById(user.id);
     }
+  }
+
+  // Если УК всё ещё pending — одобрить сразу
+  if (user.role === 'uk' && user.company_id && user.uk_status !== 'approved') {
+    await pool.execute(
+      `UPDATE management_companies SET status = 'approved' WHERE id = :id AND status = 'pending'`,
+      { id: user.company_id },
+    );
+    await updateUser(user.id, { uk_status: 'approved' });
+    user = await findUserById(user.id);
   }
 
   if (!user?.company_id) return user;
@@ -881,7 +940,10 @@ function mapWebCategoryToRequest(category) {
 }
 
 function serializeTicket(r, messages = []) {
-  const status = r.status === 'rejected' ? 'done' : r.status;
+  const raw = String(r.status || 'new');
+  const status = ['new', 'in_progress', 'done', 'rejected'].includes(raw) ? raw : 'new';
+  const maxUserId = r.resident_max_user_id || r.max_user_id || null;
+  const username = r.resident_username || r.username || null;
   return {
     id: String(r.id),
     publicNumber: r.public_number,
@@ -889,7 +951,7 @@ function serializeTicket(r, messages = []) {
     title: r.title || r.description?.slice(0, 80) || r.public_number,
     description: r.description || '',
     category: r.web_category || r.category,
-    status: status === 'in_progress' || status === 'new' || status === 'done' ? status : 'new',
+    status,
     address: r.address_text,
     createdAt: r.created_at
       ? new Date(r.created_at).toLocaleString('ru-RU')
@@ -898,6 +960,9 @@ function serializeTicket(r, messages = []) {
     author: [r.resident_first_name || r.first_name, r.resident_last_name || r.last_name]
       .filter(Boolean)
       .join(' ') || 'Житель',
+    authorMaxUserId: maxUserId ? String(maxUserId) : undefined,
+    authorUsername: username || undefined,
+    authorMaxProfileUrl: maxUserId ? `max://user/${maxUserId}` : undefined,
     ukComment: r.uk_comment || undefined,
     companyId: r.company_id ? String(r.company_id) : undefined,
     messages: (messages || []).map((m) => ({
@@ -918,9 +983,11 @@ export async function listTicketsForUser(user) {
   if (user.role === 'admin') {
     const [all] = await pool.execute(
       `SELECT r.*,
-              u.first_name, u.last_name, u.phone, u.max_user_id,
+              u.first_name, u.last_name, u.phone, u.max_user_id, u.username,
               u.first_name AS resident_first_name,
-              u.last_name AS resident_last_name
+              u.last_name AS resident_last_name,
+              u.max_user_id AS resident_max_user_id,
+              u.username AS resident_username
        FROM requests r
        JOIN users u ON u.id = r.user_id
        ORDER BY r.created_at DESC
@@ -940,9 +1007,11 @@ export async function listTicketsForUser(user) {
     // Заявки компании + заявки жителей этой компании (даже если company_id у заявки пустой)
     const [all] = await pool.execute(
       `SELECT r.*,
-              u.first_name, u.last_name, u.phone, u.max_user_id,
+              u.first_name, u.last_name, u.phone, u.max_user_id, u.username,
               u.first_name AS resident_first_name,
-              u.last_name AS resident_last_name
+              u.last_name AS resident_last_name,
+              u.max_user_id AS resident_max_user_id,
+              u.username AS resident_username
        FROM requests r
        JOIN users u ON u.id = r.user_id
        WHERE r.company_id = :companyId
@@ -954,6 +1023,7 @@ export async function listTicketsForUser(user) {
          CASE r.status
            WHEN 'new' THEN 0
            WHEN 'in_progress' THEN 1
+           WHEN 'rejected' THEN 3
            ELSE 2
          END,
          r.created_at DESC
@@ -973,9 +1043,56 @@ export async function listTicketsForUser(user) {
       }
     }
   } else {
-    rows = await listResidentRequests(user.id, 50);
+    // Житель видит свои заявки (бот + мини-приложение)
+    const [mine] = await pool.execute(
+      `SELECT r.*,
+              u.first_name, u.last_name, u.phone, u.max_user_id, u.username,
+              u.first_name AS resident_first_name,
+              u.last_name AS resident_last_name,
+              u.max_user_id AS resident_max_user_id,
+              u.username AS resident_username
+       FROM requests r
+       JOIN users u ON u.id = r.user_id
+       WHERE r.user_id = :userId
+       ORDER BY r.created_at DESC
+       LIMIT 80`,
+      { userId: user.id },
+    );
+    rows = mine;
   }
   return rows.map((r) => serializeTicket(r));
+}
+
+async function ukCanAccessRequest(user, request) {
+  if (user.role !== 'uk') return false;
+  const companyId = Number(user.company_id);
+  if (!companyId) return false;
+  if (Number(request.company_id) === companyId) return true;
+  // Заявка без company_id, но житель этой УК
+  if (!request.company_id && request.user_id) {
+    const [rows] = await pool.execute(
+      'SELECT company_id FROM users WHERE id = :id LIMIT 1',
+      { id: request.user_id },
+    );
+    if (Number(rows[0]?.company_id) === companyId) {
+      await pool.execute('UPDATE requests SET company_id = :cid WHERE id = :id', {
+        cid: companyId,
+        id: request.id,
+      }).catch(() => {});
+      return true;
+    }
+  }
+  if (request.house_id) {
+    const house = await getHouse(request.house_id);
+    if (house && Number(house.company_id) === companyId) {
+      await pool.execute('UPDATE requests SET company_id = :cid WHERE id = :id', {
+        cid: companyId,
+        id: request.id,
+      }).catch(() => {});
+      return true;
+    }
+  }
+  return false;
 }
 
 export async function getTicketForUser(user, ticketId) {
@@ -984,7 +1101,7 @@ export async function getTicketForUser(user, ticketId) {
 
   const allowed =
     user.role === 'admin'
-    || (user.role === 'uk' && Number(request.company_id) === Number(user.company_id))
+    || (user.role === 'uk' && await ukCanAccessRequest(user, request))
     || (user.role !== 'uk' && user.role !== 'admin' && Number(request.user_id) === Number(user.id));
 
   if (!allowed) throw Object.assign(new Error('Нет доступа'), { status: 403 });
@@ -1004,7 +1121,7 @@ export async function addTicketComment(user, ticketId, body) {
 
   const isUk = user.role === 'uk' || user.role === 'admin';
   const isOwner = Number(request.user_id) === Number(user.id);
-  if (isUk && user.role === 'uk' && Number(request.company_id) !== Number(user.company_id)) {
+  if (user.role === 'uk' && !(await ukCanAccessRequest(user, request))) {
     throw Object.assign(new Error('Нет доступа'), { status: 403 });
   }
   if (!isUk && !isOwner) {
@@ -1100,7 +1217,7 @@ export async function setTicketStatus(user, ticketId, status) {
   if (!request) {
     throw Object.assign(new Error('Заявка не найдена'), { status: 404 });
   }
-  if (user.role === 'uk' && Number(request.company_id) !== Number(user.company_id)) {
+  if (user.role === 'uk' && !(await ukCanAccessRequest(user, request))) {
     throw Object.assign(new Error('Заявка не найдена'), { status: 404 });
   }
   const allowed = ['new', 'in_progress', 'done', 'rejected'];
@@ -1284,6 +1401,33 @@ export async function appealParkingSpot(user, spotId) {
   return { ticket, parking: await listParking(spot.house_id) };
 }
 
+export function serializeCompanyMember(u) {
+  if (!u) return null;
+  return {
+    id: String(u.id),
+    name: [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || 'Пользователь',
+    phone: u.phone || '',
+    role: u.role || 'resident',
+    username: u.username || undefined,
+    maxUserId: u.max_user_id ? String(u.max_user_id) : undefined,
+    maxProfileUrl: u.max_user_id ? `max://user/${u.max_user_id}` : undefined,
+    city: u.city_slug || '',
+    address: u.registration_address || '',
+    personalAccount: u.personal_account || '',
+  };
+}
+
+export async function listResidentsForUk(user) {
+  if (user.role !== 'uk' && user.role !== 'admin') return [];
+  const companyId = user.company_id;
+  if (!companyId) return [];
+  const { listCompanyUsers } = await import('./db.js');
+  const rows = await listCompanyUsers(companyId);
+  return rows
+    .filter((r) => r.role !== 'uk' || Number(r.id) !== Number(user.id))
+    .map(serializeCompanyMember);
+}
+
 export async function bootstrapForUser(user) {
   user = await ensureUserHouseFromCompany(user);
   const houses = await listHouses();
@@ -1302,6 +1446,9 @@ export async function bootstrapForUser(user) {
     messages = messageLists.flat();
   }
   const tickets = await listTicketsForUser(user);
+  const residents = user.role === 'uk' || user.role === 'admin'
+    ? await listResidentsForUk(user)
+    : [];
   return {
     user: serializeUserFixed(user),
     houses,
@@ -1312,5 +1459,6 @@ export async function bootstrapForUser(user) {
     tickets,
     works,
     parking,
+    residents,
   };
 }

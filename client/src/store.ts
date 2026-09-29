@@ -9,8 +9,10 @@ import {
   type BootstrapPayload,
   type Company,
 } from './api'
+import { disconnectRealtime } from './realtime'
 import type {
   Chat,
+  CompanyMember,
   EntranceWork,
   House,
   Message,
@@ -40,6 +42,7 @@ export interface AppStore {
   tickets: Ticket[]
   works: EntranceWork[]
   parking: ParkingSpot[]
+  residents: CompanyMember[]
   toast: Toast | null
   lastSendAt: number
   lastSendText: string
@@ -71,6 +74,7 @@ export interface AppStore {
   releaseParking: (id: string) => Promise<string | null>
   appealParking: (id: string) => Promise<string | null>
   setParkingActive: (id: string, active: boolean) => Promise<string | null>
+  handleRealtime: (event: Record<string, unknown>) => void
 }
 
 function applyData(
@@ -93,6 +97,7 @@ function applyData(
     tickets: data.tickets || [],
     works: data.works || [],
     parking: data.parking || [],
+    residents: data.residents || [],
   })
 }
 
@@ -128,6 +133,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   tickets: [],
   works: [],
   parking: [],
+  residents: [],
   toast: null,
   lastSendAt: 0,
   lastSendText: '',
@@ -191,12 +197,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
         tickets: [],
         works: [],
         parking: [],
+        residents: [],
         apiError: apiDownMessage(e),
       })
     }
   },
 
   logout: async () => {
+    disconnectRealtime()
     try {
       await clientApi.logout()
     } catch {
@@ -214,6 +222,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       tickets: [],
       works: [],
       parking: [],
+      residents: [],
       apiError: null,
     })
   },
@@ -381,6 +390,65 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return null
     } catch (e) {
       return apiDownMessage(e)
+    }
+  },
+
+  handleRealtime: (event) => {
+    const type = String(event?.type || '')
+    if (!type || type === 'hello' || type === 'pong') return
+
+    if (type === 'chat.message') {
+      const message = event.message as Message | undefined
+      if (!message?.id) return
+      const chats = Array.isArray(event.chats) ? (event.chats as Chat[]) : null
+      set({
+        messages: [...get().messages.filter((m) => m.id !== message.id), message],
+        chats: chats?.length
+          ? chats
+          : get().chats.map((c) =>
+              c.id === message.chatId
+                ? { ...c, lastMessage: message.text, time: message.time }
+                : c,
+            ),
+      })
+      return
+    }
+
+    if (type === 'ticket.updated' || type === 'ticket.created') {
+      const ticket = event.ticket as Ticket | undefined
+      if (!ticket?.id) return
+      set({
+        tickets: [...get().tickets.filter((t) => t.id !== ticket.id), ticket].sort((a, b) =>
+          String(b.createdAt).localeCompare(String(a.createdAt), 'ru'),
+        ),
+      })
+      return
+    }
+
+    if (type === 'parking.updated' && Array.isArray(event.parking)) {
+      set({ parking: event.parking as ParkingSpot[] })
+      return
+    }
+
+    if (type === 'works.updated' && Array.isArray(event.works)) {
+      set({ works: event.works as EntranceWork[] })
+      return
+    }
+
+    if (type === 'residents.updated' && Array.isArray(event.residents)) {
+      set({ residents: event.residents as CompanyMember[] })
+      return
+    }
+
+    if (type === 'topic.created') {
+      const topic = event.topic as Topic | undefined
+      const chats = Array.isArray(event.chats) ? (event.chats as Chat[]) : null
+      if (topic?.id) {
+        set({
+          topics: [topic, ...get().topics.filter((t) => t.id !== topic.id)],
+          chats: chats?.length ? chats : get().chats,
+        })
+      }
     }
   },
 }))
