@@ -56,6 +56,13 @@ export interface AppStore {
   selectHouse: (houseId: string) => Promise<void>
   savePrivateAddress: (street: string, entrance: string, flat: string) => Promise<void>
   skipPrivateAddress: () => Promise<void>
+  updateProfile: (input: {
+    phone?: string
+    city?: string
+    street?: string
+    entrance?: string
+    flat?: string
+  }) => Promise<void>
   sendMessage: (chatId: string, text: string) => Promise<boolean>
   createTopic: (input: {
     category: TopicCategory
@@ -274,6 +281,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
   skipPrivateAddress: async () => {
     const { user } = await clientApi.skipAddress()
     set({ user: { ...user, password: '' } })
+  },
+
+  updateProfile: async (input) => {
+    const data = await clientApi.updateProfile(input)
+    applyData(set, data)
   },
 
   sendMessage: async (chatId, text) => {

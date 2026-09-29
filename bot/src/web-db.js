@@ -700,6 +700,52 @@ export async function saveResidentOnboarding(user, input) {
   return findUserById(user.id);
 }
 
+/** Обновление данных профиля из мини-приложения (настройки). */
+export async function updateWebUserProfile(user, input) {
+  const fields = {};
+  if (input.phone != null && String(input.phone).trim()) {
+    fields.phone = normalizePhone(input.phone);
+  }
+  if (input.city != null) {
+    const cityRaw = String(input.city).trim();
+    if (!cityRaw) throw Object.assign(new Error('Укажите город'), { status: 400 });
+    const citySlug = toCitySlug(cityRaw);
+    await upsertCity(citySlug, cityRaw);
+    fields.city_slug = citySlug;
+  }
+  if (user.role === 'resident') {
+    if (input.street != null) {
+      const street = String(input.street).trim();
+      if (street.length < 2) throw Object.assign(new Error('Укажите адрес'), { status: 400 });
+      fields.street = street;
+    }
+    if (input.entrance != null) {
+      const entrance = String(input.entrance).trim();
+      if (!entrance) throw Object.assign(new Error('Укажите подъезд'), { status: 400 });
+      fields.entrance = entrance;
+    }
+    if (input.flat != null) {
+      const flat = String(input.flat).trim();
+      if (!flat) throw Object.assign(new Error('Укажите квартиру'), { status: 400 });
+      fields.flat = flat;
+    }
+    if (fields.street || fields.entrance || fields.flat) {
+      const street = fields.street ?? user.street;
+      const entrance = fields.entrance ?? user.entrance;
+      const flat = fields.flat ?? user.flat;
+      fields.registration_address = [street, entrance && `подъезд ${entrance}`, flat && `кв. ${flat}`]
+        .filter(Boolean)
+        .join(', ') || null;
+      fields.skipped_address = 1;
+    }
+  }
+  if (!Object.keys(fields).length) {
+    throw Object.assign(new Error('Нет данных для сохранения'), { status: 400 });
+  }
+  await updateUser(user.id, fields);
+  return findUserById(user.id);
+}
+
 /** Регистрация УК из мини-приложения (сразу approved). */
 export async function registerUkCompany(user, input) {
   const name = String(input.name || '').trim();

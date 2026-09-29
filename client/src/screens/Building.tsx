@@ -198,6 +198,24 @@ export function BuildingScreen() {
           </div>
         ) : null}
 
+        {!isUk && byEntrance.some((w) => w.floor != null) ? (
+          <div className="passport-block">
+            <div className="passport-section-head">
+              <h3>
+                <Megaphone size={16} /> Объявления по этажам · подъезд {picked}
+              </h3>
+            </div>
+            {byEntrance
+              .filter((w) => w.floor != null)
+              .sort((a, b) => Number(b.floor) - Number(a.floor))
+              .map((item) => (
+                <WorkRow key={item.id} item={item} isUk={false} onStatus={() => {}} />
+              ))}
+          </div>
+        ) : null}
+
+        {isUk ? (
+        <>
         <div className="passport-block">
           <div className="passport-section-head">
             <h3>
@@ -255,7 +273,7 @@ export function BuildingScreen() {
               />
             ))}
 
-            {isUk ? (
+            {(
               <form
                 className="floor-announce-form"
                 onSubmit={async (e: FormEvent) => {
@@ -362,8 +380,10 @@ export function BuildingScreen() {
                   </button>
                 </div>
               </form>
-            ) : null}
+            )}
           </div>
+        ) : null}
+        </>
         ) : null}
       </section>
     </div>

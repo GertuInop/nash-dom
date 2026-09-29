@@ -42,6 +42,7 @@ import {
   skipPrivateAddress,
   saveResidentOnboarding,
   registerUkCompany,
+  updateWebUserProfile,
   verifyPassword,
 } from '../web-db.js';
 import {
@@ -478,6 +479,15 @@ function createServerRouter() {
         ? await skipPrivateAddress(req.user.id)
         : await savePrivateAddress(req.user.id, { street, entrance, flat });
       res.json({ user: serializeUserFixed(user) });
+    }),
+  );
+
+  api.patch(
+    '/me/profile',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const user = await updateWebUserProfile(req.user, req.body || {});
+      res.json(await bootstrapForUser(user));
     }),
   );
 

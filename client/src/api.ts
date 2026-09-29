@@ -174,6 +174,18 @@ export const clientApi = {
       body: JSON.stringify({ street, entrance, flat }),
     }),
 
+  updateProfile: (input: {
+    phone?: string
+    city?: string
+    street?: string
+    entrance?: string
+    flat?: string
+  }) =>
+    api<BootstrapPayload>('/server/me/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+
   skipAddress: () =>
     api<{ user: User }>('/server/me/address', {
       method: 'POST',
