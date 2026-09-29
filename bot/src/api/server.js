@@ -127,14 +127,39 @@ function createServerRouter() {
     '/auth/max',
     asyncHandler(async (req, res) => {
       const initData = String(req.body?.initData || '');
-      const parsed = validateInitDataDetailed(initData);
+      const bodyUser = req.body?.user;
+      let parsed = validateInitDataDetailed(initData);
+
+      // Запас: user из Bridge initDataUnsafe
+      if (!parsed.ok && bodyUser?.id) {
+        console.warn('[auth/max] fallback to body.user from Bridge');
+        parsed = {
+          ok: true,
+          verified: false,
+          data: {
+            user: {
+              id: bodyUser.id,
+              first_name: bodyUser.first_name || bodyUser.firstName || null,
+              last_name: bodyUser.last_name || bodyUser.lastName || null,
+              username: bodyUser.username || null,
+              language_code: bodyUser.language_code || bodyUser.languageCode || null,
+              photo_url: bodyUser.photo_url || bodyUser.photoUrl || null,
+            },
+            chat: null,
+            authDate: 0,
+            queryId: null,
+            startParam: null,
+          },
+        };
+      }
+
       if (!parsed.ok) {
         const hints = {
           no_bot_token: 'На сервере не задан BOT_TOKEN',
           empty_init_data: 'Клиент не передал initData',
           no_hash: 'В initData нет hash',
           duplicate_hash: 'В initData несколько hash',
-          bad_hash: 'Подпись initData не совпала — проверьте BOT_TOKEN бота, к которому привязано мини-приложение',
+          bad_hash: 'Подпись initData не совпала — проверьте BOT_TOKEN',
           no_auth_date: 'В initData нет auth_date',
           expired: 'initData устарел (auth_date)',
           no_user: 'В initData нет user.id',
@@ -152,6 +177,7 @@ function createServerRouter() {
         ...result,
         startParam: parsed.data.startParam,
         platform: req.body?.platform || null,
+        verified: parsed.verified !== false,
       });
     }),
   );

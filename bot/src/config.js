@@ -25,8 +25,15 @@ const miniappUrl =
   process.env.MINIAPP_URL ||
   (domain && domain !== 'localhost' ? `https://${domain}/` : '');
 
+function cleanToken(value) {
+  return String(value || '')
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/\r/g, '');
+}
+
 export const config = {
-  botToken: apiOnly ? (process.env.BOT_TOKEN || '') : required('BOT_TOKEN'),
+  botToken: apiOnly ? cleanToken(process.env.BOT_TOKEN || '') : cleanToken(required('BOT_TOKEN')),
   consentUrl: process.env.CONSENT_URL || 'https://example.com/consent.pdf',
   adminUserIds: (process.env.ADMIN_USER_IDS || '')
     .split(',')

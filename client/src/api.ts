@@ -75,7 +75,6 @@ export function getMaxInitData(): string {
   const fromBridge = String(window.WebApp?.initData || '').trim()
   if (fromBridge) return fromBridge
 
-  // Fallback: hash-фрагмент URL (#WebAppData=...)
   try {
     const raw = window.location.hash.startsWith('#')
       ? window.location.hash.slice(1)
@@ -92,11 +91,21 @@ export function getMaxPlatform(): string | null {
   return window.WebApp?.platform || null
 }
 
+export function getMaxUnsafeUser(): Record<string, unknown> | null {
+  const u = window.WebApp?.initDataUnsafe?.user
+  if (u?.id) return u as unknown as Record<string, unknown>
+  return null
+}
+
 export const clientApi = {
-  loginMax: (initData: string, platform?: string | null) =>
+  loginMax: (initData: string, platform?: string | null, user?: Record<string, unknown> | null) =>
     api<BootstrapPayload & { token: string }>('/server/auth/max', {
       method: 'POST',
-      body: JSON.stringify({ initData, platform: platform || undefined }),
+      body: JSON.stringify({
+        initData,
+        platform: platform || undefined,
+        user: user || undefined,
+      }),
     }),
 
   logout: () => api<{ ok: boolean }>('/server/auth/logout', { method: 'POST' }),

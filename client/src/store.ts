@@ -3,6 +3,7 @@ import {
   clientApi,
   getMaxInitData,
   getMaxPlatform,
+  getMaxUnsafeUser,
   getToken,
   setToken,
   type BootstrapPayload,
@@ -103,12 +104,13 @@ function apiDownMessage(e: unknown) {
 
 async function authViaBridge(): Promise<BootstrapPayload & { token: string }> {
   const initData = getMaxInitData()
-  if (!initData) {
+  const unsafeUser = getMaxUnsafeUser()
+  if (!initData && !unsafeUser) {
     throw new Error('Нет данных MAX Bridge. Откройте мини-приложение внутри MAX.')
   }
   window.WebApp?.ready?.()
   window.WebApp?.expand?.()
-  return clientApi.loginMax(initData, getMaxPlatform())
+  return clientApi.loginMax(initData || '', getMaxPlatform(), unsafeUser)
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -136,9 +138,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   hydrate: async () => {
     const token = getToken()
     const initData = getMaxInitData()
+    const unsafeUser = getMaxUnsafeUser()
 
-    // Всегда предпочитаем свежий Bridge-сеанс, если есть initData
-    if (initData) {
+    // Всегда предпочитаем свежий Bridge-сеанс, если есть initData / user
+    if (initData || unsafeUser) {
       try {
         const data = await authViaBridge()
         applyData(set, data, data.token)
