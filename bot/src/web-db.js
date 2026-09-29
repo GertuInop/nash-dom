@@ -603,18 +603,53 @@ export async function selectUserCompany(userId, companyId) {
   return findUserById(userId);
 }
 
-/** Если у пользователя уже есть УК из бота — привязать дом */
+/** Если у пользователя уже есть УК из бота — привязать дом / company_id */
 export async function ensureUserHouseFromCompany(user) {
-  if (!user?.company_id || user.house_id) return user;
-  const [rows] = await pool.execute(
-    'SELECT * FROM management_companies WHERE id = :id LIMIT 1',
-    { id: user.company_id },
-  );
-  const company = rows[0];
-  if (!company) return user;
-  const house = await ensureHouseForCompany(company);
-  await updateUser(user.id, { house_id: house.id, uk_name: user.uk_name || company.name });
-  return findUserById(user.id);
+  if (!user) return user;
+
+  // Руководитель УК без company_id — найти компанию, которую он создал
+  if (user.role === 'uk' && !user.company_id) {
+    const [owned] = await pool.execute(
+      `SELECT id, name FROM management_companies
+       WHERE requested_by_user_id = :uid
+       ORDER BY FIELD(status, 'approved', 'pending', 'blocked', 'rejected'), id DESC
+       LIMIT 1`,
+      { uid: user.id },
+    );
+    if (owned[0]) {
+      await updateUser(user.id, {
+        company_id: owned[0].id,
+        uk_name: owned[0].name,
+        uk_status: user.uk_status === 'none' ? 'approved' : user.uk_status,
+      });
+      user = await findUserById(user.id);
+    }
+  }
+
+  if (!user?.company_id) return user;
+
+  if (!user.house_id) {
+    const [rows] = await pool.execute(
+      'SELECT * FROM management_companies WHERE id = :id LIMIT 1',
+      { id: user.company_id },
+    );
+    const company = rows[0];
+    if (!company) return user;
+    const house = await ensureHouseForCompany(company);
+    await updateUser(user.id, { house_id: house.id, uk_name: user.uk_name || company.name });
+    user = await findUserById(user.id);
+  }
+
+  // Подтянуть «осиротевшие» заявки жителей этой УК без company_id
+  await pool.execute(
+    `UPDATE requests r
+     JOIN users u ON u.id = r.user_id
+     SET r.company_id = :cid
+     WHERE r.company_id IS NULL AND u.company_id = :cid`,
+    { cid: user.company_id },
+  ).catch(() => {});
+
+  return user;
 }
 
 export async function getHouse(houseId) {
@@ -877,7 +912,9 @@ function serializeTicket(r, messages = []) {
 }
 
 export async function listTicketsForUser(user) {
+  user = await ensureUserHouseFromCompany(user);
   let rows = [];
+
   if (user.role === 'admin') {
     const [all] = await pool.execute(
       `SELECT r.*,
@@ -896,8 +933,45 @@ export async function listTicketsForUser(user) {
       const house = await getHouse(user.house_id);
       companyId = house?.company_id || null;
     }
-    if (!companyId) return [];
-    rows = await listCompanyRequests(companyId, 50);
+    if (!companyId) {
+      // Пустой список — но не молча: вернём заявки жителей без company, если УК одна у юзера через house
+      return [];
+    }
+    // Заявки компании + заявки жителей этой компании (даже если company_id у заявки пустой)
+    const [all] = await pool.execute(
+      `SELECT r.*,
+              u.first_name, u.last_name, u.phone, u.max_user_id,
+              u.first_name AS resident_first_name,
+              u.last_name AS resident_last_name
+       FROM requests r
+       JOIN users u ON u.id = r.user_id
+       WHERE r.company_id = :companyId
+          OR (r.company_id IS NULL AND u.company_id = :companyId)
+          OR (r.house_id IS NOT NULL AND r.house_id IN (
+                SELECT h.id FROM houses h WHERE h.company_id = :companyId
+              ))
+       ORDER BY
+         CASE r.status
+           WHEN 'new' THEN 0
+           WHEN 'in_progress' THEN 1
+           ELSE 2
+         END,
+         r.created_at DESC
+       LIMIT 80`,
+      { companyId },
+    );
+    rows = all;
+
+    // Backfill company_id для найденных без него
+    for (const r of rows) {
+      if (!r.company_id) {
+        await pool.execute('UPDATE requests SET company_id = :cid WHERE id = :id', {
+          cid: companyId,
+          id: r.id,
+        }).catch(() => {});
+        r.company_id = companyId;
+      }
+    }
   } else {
     rows = await listResidentRequests(user.id, 50);
   }

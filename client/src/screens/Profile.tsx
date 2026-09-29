@@ -1,5 +1,7 @@
 import { ChevronLeft, ChevronRight, Home, LogOut, MapPin, Ticket } from 'lucide-react'
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { clientApi } from '../api'
 import { useAppStore, useUser } from '../store'
 import { houseTitle, statusClass, statusLabel } from '../ui'
 
@@ -98,8 +100,13 @@ export function ProfileScreen() {
 export function MyTicketsScreen() {
   const user = useUser()
   const ticketsAll = useAppStore((s) => s.tickets)
-  const tickets = ticketsAll.filter((t) => t.authorId === user?.id)
+  const applyBootstrap = useAppStore((s) => s.applyBootstrap)
+  const tickets = ticketsAll.filter((t) => String(t.authorId) === String(user?.id))
   const navigate = useNavigate()
+
+  useEffect(() => {
+    void clientApi.me().then((data) => applyBootstrap(data)).catch(() => {})
+  }, [applyBootstrap])
 
   return (
     <div className="pad">

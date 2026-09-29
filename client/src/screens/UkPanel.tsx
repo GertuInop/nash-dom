@@ -1,6 +1,7 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { ChevronLeft, ShieldAlert } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { clientApi } from '../api'
 import { useAppStore, useUser } from '../store'
 import { categoryLabel, EmptyState, Field, houseTitle, PrimaryButton, statusClass, statusLabel, TextArea } from '../ui'
 
@@ -8,13 +9,36 @@ export function UkPanelScreen() {
   const user = useUser()
   const tickets = useAppStore((s) => s.tickets)
   const houses = useAppStore((s) => s.houses)
+  const applyBootstrap = useAppStore((s) => s.applyBootstrap)
   const setTicketStatus = useAppStore((s) => s.setTicketStatus)
   const commentTicket = useAppStore((s) => s.commentTicket)
+  const setToast = useAppStore((s) => s.setToast)
   const [openId, setOpenId] = useState<string | null>(null)
   const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
   const house = houses.find((h) => h.id === user?.houseId)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        const data = await clientApi.me()
+        if (!cancelled) applyBootstrap(data)
+      } catch (e) {
+        if (!cancelled) {
+          setToast({ type: 'error', text: e instanceof Error ? e.message : 'Не удалось загрузить заявки' })
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [applyBootstrap, setToast])
 
   const nNew = tickets.filter((t) => t.status === 'new').length
   const nWork = tickets.filter((t) => t.status === 'in_progress').length
@@ -43,11 +67,17 @@ export function UkPanelScreen() {
         </div>
       </div>
       <h3>Заявки (бот + мини-приложение)</h3>
-      {tickets.length === 0 ? (
+      {loading ? (
+        <p className="muted">Загрузка заявок…</p>
+      ) : tickets.length === 0 ? (
         <EmptyState
           icon={<ShieldAlert size={36} />}
           title="Заявок нет"
-          text="Заявки жителей из бота и мини-приложения появятся здесь."
+          text={
+            user?.companyId
+              ? 'Пока нет заявок от жителей этой УК. Создайте заявку из бота или мини-приложения жителя.'
+              : 'У вашего аккаунта не привязана УК (company_id). Откройте бота и завершите регистрацию УК, затем обновите мини-приложение.'
+          }
         />
       ) : (
         tickets.map((t) => (

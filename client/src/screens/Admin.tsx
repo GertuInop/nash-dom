@@ -10,7 +10,7 @@ import { clientApi } from '../api'
 import { useAppStore, useUser } from '../store'
 import { EmptyState, Field, PrimaryButton, TextInput } from '../ui'
 
-type AdminTab = 'requests' | 'companies' | 'users'
+type AdminTab = 'requests' | 'companies' | 'users' | 'tickets'
 
 function openMaxProfile(url?: string | null) {
   if (!url) return
@@ -38,11 +38,12 @@ function StatusPill({ status }: { status: string }) {
 export function AdminPanelScreen() {
   const user = useUser()
   const setToast = useAppStore((s) => s.setToast)
-  const [tab, setTab] = useState<AdminTab>('requests')
+  const [tab, setTab] = useState<AdminTab>('tickets')
   const [loading, setLoading] = useState(true)
   const [pendingUk, setPendingUk] = useState<any[]>([])
   const [companies, setCompanies] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
+  const [tickets, setTickets] = useState<any[]>([])
   const [stats, setStats] = useState<any>({})
   const [q, setQ] = useState('')
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
@@ -53,11 +54,15 @@ export function AdminPanelScreen() {
   async function reload() {
     setLoading(true)
     try {
-      const data = await clientApi.adminOverview()
+      const [data, ticketData] = await Promise.all([
+        clientApi.adminOverview(),
+        clientApi.me(),
+      ])
       setPendingUk(data.pendingUk || [])
       setCompanies(data.companies || [])
       setUsers(data.users || [])
       setStats(data.stats || {})
+      setTickets(ticketData.tickets || [])
     } catch (e) {
       setToast({ type: 'error', text: e instanceof Error ? e.message : 'Ошибка загрузки' })
     } finally {
@@ -118,6 +123,10 @@ export function AdminPanelScreen() {
 
       <div className="stats">
         <div className="stat">
+          <b>{tickets.length}</b>
+          <span className="muted">Заявки</span>
+        </div>
+        <div className="stat">
           <b>{stats.pendingUk ?? 0}</b>
           <span className="muted">Заявки УК</span>
         </div>
@@ -134,6 +143,7 @@ export function AdminPanelScreen() {
       <div className="admin-tabs">
         {(
           [
+            ['tickets', 'Заявки жителей', tickets.length],
             ['requests', 'Заявки УК', pendingUk.length],
             ['companies', 'Все УК', companies.length],
             ['users', 'Люди', users.length],
@@ -153,6 +163,31 @@ export function AdminPanelScreen() {
           </button>
         ))}
       </div>
+
+      {tab === 'tickets' ? (
+        <section>
+          {tickets.length === 0 ? (
+            <EmptyState
+              icon={<Shield size={36} />}
+              title="Заявок жителей нет"
+              text="Когда житель отправит заявку из бота или мини-приложения — она появится здесь."
+            />
+          ) : (
+            tickets.map((t) => (
+              <div key={t.id} className="card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <strong>№{t.publicNumber || t.id}</strong>
+                  <span className="hint">{t.status}</span>
+                </div>
+                <h3>{t.title}</h3>
+                <p className="muted">{t.description}</p>
+                <div className="hint">{t.author} · {t.address}</div>
+                <div className="hint">{t.createdAt}</div>
+              </div>
+            ))
+          )}
+        </section>
+      ) : null}
 
       {tab === 'requests' ? (
         <section>
