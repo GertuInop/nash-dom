@@ -49,32 +49,47 @@
 
 | Путь | Компонент |
 |------|-----------|
-| `/` | React мини-приложение (`hackaton/`) |
+| `/` | React мини-приложение (`client/`) |
 | `/server/*` | REST API (`bot/src/api`) |
 | `/bot` | Webhook MAX (`@maxhub/max-bot-api`) |
 
 | Каталог | Назначение |
 |---------|------------|
 | `bot/` | Бот MAX, Express API, Caddyfile, MySQL init, сертификаты Минцифры |
-| `hackaton/` | Frontend (Vite + React) |
+| `client/` | Frontend (Vite + React) |
 | `testdata/` | Тестовые аккаунты и примеры данных |
 | `openapi.yaml` | Спецификация OpenAPI 3.0 |
 | `DATA-API.yaml` | Конфиг обязательных проверок API |
 
 ## Запуск одной командой (Docker)
 
+На **слабом VPS** (1–2 GB RAM) не запускайте `docker compose up --build` —
+два параллельных `npm ci` часто роняют сервер. Используйте безопасный скрипт:
+
 ```bash
 cp .env.example .env
 cp .env.example bot/.env
 # заполните BOT_TOKEN и ADMIN_USER_IDS в bot/.env
-# для продакшена: DOMAIN, ACME_EMAIL, MINIAPP_URL
 
-docker compose up --build -d
+# Linux / сервер:
+bash scripts/docker-up.sh
+
+# Windows (PowerShell):
+powershell -File scripts/docker-up.ps1
 ```
 
-Поднимаются: **mysql**, **bot**, **web**, **caddy**.
+Либо вручную по шагам:
 
-Эквивалент из каталога бота: `cd bot && docker compose up --build -d`.
+```bash
+docker pull node:20-alpine
+docker pull caddy:2.8-alpine
+docker pull mysql:8.4
+docker compose build bot
+docker compose build web
+docker compose up -d
+```
+
+На мощной машине можно и так: `docker compose up --build -d`.
 
 ## Переменные окружения
 
@@ -107,7 +122,7 @@ docker compose up --build -d
 Зафиксированы lock-файлами:
 
 - `bot/package-lock.json` — Node (бот + API)
-- `hackaton/package-lock.json` — Node (frontend)
+- `client/package-lock.json` — Node (frontend)
 
 Основные пакеты бота: `@maxhub/max-bot-api`, `express`, `mysql2`, `cors`, `dotenv`, `undici`.  
 Frontend: `react`, `vite`.  
@@ -175,7 +190,8 @@ Frontend: `react`, `vite`.
 - Без `BOT_TOKEN` и доступа к MAX бот в мессенджере не работает (API и веб — да).
 - На `DOMAIN=localhost` используется long polling; webhook — на публичном домене.
 - `CONSENT_URL` по умолчанию — заглушка.
-- Сборка Docker рассчитана на ≤ 5 минут при уже скачанных базовых образах (`npm ci` + сборка Vite).
+- Сборка Docker рассчитана на ≤ 5 минут при уже скачанных базовых образах.
+- На VPS с 1–2 GB RAM используйте `scripts/docker-up.sh` (последовательная сборка), иначе OOM при параллельном `npm ci`.
 
 ## Остановка и перезапуск
 
@@ -197,8 +213,8 @@ docker compose down -v
 |------|------------|
 | `compose.yaml` | Запуск всех компонентов одной командой |
 | `bot/Dockerfile` | Образ бота + API |
-| `hackaton/Dockerfile` | Образ фронта (nginx) |
-| `bot/.dockerignore`, `hackaton/.dockerignore`, `.dockerignore` | Исключения контекста сборки |
+| `client/Dockerfile` | Образ фронта (статика через Caddy) |
+| `bot/.dockerignore`, `client/.dockerignore`, `.dockerignore` | Исключения контекста сборки |
 | `.env.example`, `bot/.env.example` | Шаблоны переменных без секретов |
 
 ## Фиксация версии кода

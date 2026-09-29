@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Building2, Layers, Wrench } from 'lucide-react'
+import { Building2, Car, ChevronLeft, Layers, Wrench } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useAppStore, useUser } from '../store'
 import { houseTitle } from '../ui'
 import { workLabel, type WorkStatus } from '../types'
@@ -11,12 +12,8 @@ function worst(statuses: WorkStatus[]): WorkStatus | 'clear' {
   return 'clear'
 }
 
-function entranceTone(statuses: WorkStatus[]): WorkStatus | 'clear' {
-  return worst(statuses)
-}
-
 function toneLabel(st: WorkStatus | 'clear') {
-  if (st === 'clear') return 'Без работ'
+  if (st === 'clear') return 'Свободно'
   return workLabel(st)
 }
 
@@ -30,8 +27,10 @@ export function BuildingScreen() {
   const entrancesCount = house?.entrances || 2
   const works = worksAll.filter((w) => w.houseId === user?.houseId)
   const [picked, setPicked] = useState(1)
+  const [pickedFloor, setPickedFloor] = useState<number | null>(null)
   const [floorFilter, setFloorFilter] = useState('')
   const isUk = user?.role === 'uk'
+  const navigate = useNavigate()
 
   const byEntrance = useMemo(
     () => works.filter((w) => w.entrance === picked),
@@ -53,6 +52,11 @@ export function BuildingScreen() {
     if (!q) return floorsDesc
     return floorsDesc.filter((f) => String(f).includes(q))
   }, [floorFilter, floorsDesc])
+
+  const floorDetailWorks = useMemo(() => {
+    if (pickedFloor == null) return []
+    return byEntrance.filter((w) => w.floor === pickedFloor)
+  }, [byEntrance, pickedFloor])
 
   const counts = {
     todo: works.filter((w) => w.status === 'todo').length,
@@ -76,6 +80,9 @@ export function BuildingScreen() {
   return (
     <div className="passport">
       <section className="passport-hero">
+        <button type="button" className="back-btn back-btn-light" onClick={() => navigate('/app')}>
+          <ChevronLeft size={18} /> Назад
+        </button>
         <div className="passport-hero-top">
           <div>
             <div className="passport-kicker">Паспорт дома</div>
@@ -105,17 +112,21 @@ export function BuildingScreen() {
             <span>В работе</span>
           </div>
         </div>
+
+        <button type="button" className="parking-jump" onClick={() => navigate('/app/parking')}>
+          <Car size={18} /> Парковка у дома
+        </button>
       </section>
 
       <section className="passport-panel">
         <div className="passport-section-head">
           <h3>Подъезды</h3>
-          <span className="muted">выберите подъезд</span>
+          <span className="muted">нажмите, чтобы открыть</span>
         </div>
 
-        <div className="entrance-rail" role="tablist" aria-label="Подъезды">
+        <div className="building-silhouette" role="tablist" aria-label="Подъезды">
           {entrances.map((entrance) => {
-            const tone = entranceTone(
+            const tone = worst(
               works.filter((w) => w.entrance === entrance).map((w) => w.status),
             )
             return (
@@ -124,11 +135,19 @@ export function BuildingScreen() {
                 type="button"
                 role="tab"
                 aria-selected={picked === entrance}
-                className={`entrance-tab tone-${tone}${picked === entrance ? ' active' : ''}`}
-                onClick={() => setPicked(entrance)}
+                className={`building-wing tone-${tone}${picked === entrance ? ' active' : ''}`}
+                onClick={() => {
+                  setPicked(entrance)
+                  setPickedFloor(null)
+                }}
               >
-                <span className="entrance-tab-num">{entrance}</span>
-                <span className="entrance-tab-cap">подъезд</span>
+                <div className="building-wing-floors">
+                  {Array.from({ length: Math.min(floors, 8) }, (_, i) => (
+                    <span key={i} className="building-window" />
+                  ))}
+                </div>
+                <strong>{entrance}</strong>
+                <span>подъезд</span>
               </button>
             )
           })}
@@ -169,55 +188,49 @@ export function BuildingScreen() {
             ) : null}
           </div>
 
-          <div className={`floor-list${floors > 16 ? ' floor-list-scroll' : ''}`}>
+          <div className={`floor-grid${floors > 16 ? ' floor-list-scroll' : ''}`}>
             {filteredFloors.map((floor) => {
               const floorWorks = byEntrance.filter((w) => w.floor === floor)
               const st = worst(floorWorks.map((w) => w.status))
               return (
-                <div key={floor} className={`floor-row tone-${st}`}>
-                  <div className="floor-num">{floor}</div>
-                  <div className="floor-body">
-                    <div className="floor-title">
-                      {floor} этаж
-                      <span className={`floor-pill pill-${st}`}>{toneLabel(st)}</span>
-                    </div>
-                    {floorWorks.length === 0 ? (
-                      <div className="floor-sub muted">Записей нет</div>
-                    ) : (
-                      <div className="floor-sub">
-                        {floorWorks.map((w) => w.title).join(' · ')}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <button
+                  key={floor}
+                  type="button"
+                  className={`floor-tile tone-${st}${pickedFloor === floor ? ' active' : ''}`}
+                  onClick={() => setPickedFloor(floor)}
+                >
+                  <b>{floor}</b>
+                  <span>{toneLabel(st)}</span>
+                </button>
               )
             })}
-            {filteredFloors.length === 0 ? (
-              <p className="muted" style={{ padding: '8px 4px' }}>
-                Этаж не найден
-              </p>
-            ) : null}
           </div>
         </div>
 
-        <div className="passport-block">
-          <div className="passport-section-head">
-            <h3>Работы подъезда {picked}</h3>
-            <span className="muted">{byEntrance.length}</span>
+        {pickedFloor != null ? (
+          <div className="passport-block floor-detail">
+            <div className="passport-section-head">
+              <h3>
+                {pickedFloor} этаж · подъезд {picked}
+              </h3>
+              <button type="button" className="btn btn-ghost" onClick={() => setPickedFloor(null)}>
+                Скрыть
+              </button>
+            </div>
+            {floorDetailWorks.length === 0 ? (
+              <p className="muted">На этом этаже записей нет — можно гулять спокойно.</p>
+            ) : (
+              floorDetailWorks.map((item) => (
+                <WorkRow
+                  key={item.id}
+                  item={item}
+                  isUk={isUk}
+                  onStatus={(s) => setWorkStatus(item.id, s)}
+                />
+              ))
+            )}
           </div>
-          {byEntrance.length === 0 ? (
-            <p className="muted">По этому подъезду записей нет.</p>
-          ) : (
-            byEntrance.map((item) => (
-              <WorkRow
-                key={item.id}
-                item={item}
-                isUk={isUk}
-                onStatus={(s) => setWorkStatus(item.id, s)}
-              />
-            ))
-          )}
-        </div>
+        ) : null}
       </section>
     </div>
   )

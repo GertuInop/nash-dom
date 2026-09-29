@@ -54,13 +54,11 @@ services:
         condition: service_healthy
 
   web:
-    build: ./hackaton
+    build: ./client
     container_name: nash-dom-web
     restart: unless-stopped
     expose:
       - "80"
-    environment:
-      API_UPSTREAM: http://bot:3080
     depends_on:
       - bot
 
@@ -74,6 +72,7 @@ services:
       - "443:443/udp"
     environment:
       DOMAIN: ${DOMAIN:-localhost}
+      SITE_ADDRESS: ${SITE_ADDRESS:-http://127.0.0.1, http://localhost}
       ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
     volumes:
       - ./bot/caddy/Caddyfile:/etc/caddy/Caddyfile:ro

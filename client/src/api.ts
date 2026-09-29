@@ -3,6 +3,7 @@ import type {
   EntranceWork,
   House,
   Message,
+  ParkingSpot,
   Ticket,
   TicketStatus,
   Topic,
@@ -30,6 +31,7 @@ export interface BootstrapPayload {
   topics: Topic[]
   tickets: Ticket[]
   works: EntranceWork[]
+  parking?: ParkingSpot[]
   token?: string
 }
 
@@ -55,18 +57,18 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const clientApi = {
-  login: (phone: string, password: string) =>
+  login: (phone: string, extra?: { name?: string; role?: string; ukName?: string }) =>
     api<BootstrapPayload & { token: string }>('/server/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ phone, password }),
+      body: JSON.stringify({ phone, ...extra }),
     }),
 
   register: (body: {
     name: string
     phone: string
-    password: string
     role: 'resident' | 'uk'
     ukName?: string
+    city?: string
   }) =>
     api<BootstrapPayload & { token: string }>('/server/auth/register', {
       method: 'POST',
@@ -105,10 +107,14 @@ export const clientApi = {
     category: TopicCategory
     title: string
     description: string
-    photoLabel?: string
-    photoUrl?: string
   }) =>
     api<BootstrapPayload & { chatId: string; topic?: Topic }>('/server/topics', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  createTicket: (input: { title: string; description: string; category: TopicCategory }) =>
+    api<{ ticket: Ticket; tickets: Ticket[] }>('/server/tickets', {
       method: 'POST',
       body: JSON.stringify(input),
     }),
@@ -123,5 +129,24 @@ export const clientApi = {
     api<{ work: EntranceWork }>(`/server/works/${id}`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
+    }),
+
+  listParking: () => api<{ parking: ParkingSpot[] }>('/server/parking'),
+
+  claimParking: (id: string) =>
+    api<{ parking: ParkingSpot[] }>(`/server/parking/${id}/claim`, { method: 'POST' }),
+
+  releaseParking: (id: string) =>
+    api<{ parking: ParkingSpot[] }>(`/server/parking/${id}/release`, { method: 'POST' }),
+
+  appealParking: (id: string) =>
+    api<{ ticket: Ticket; parking: ParkingSpot[] }>(`/server/parking/${id}/appeal`, {
+      method: 'POST',
+    }),
+
+  setParkingActive: (id: string, active: boolean) =>
+    api<{ parking: ParkingSpot[] }>(`/server/parking/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ active }),
     }),
 }

@@ -1,12 +1,14 @@
 import { type FormEvent, useMemo, useState } from 'react'
+import { ChevronLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore, useUser } from '../store'
-import { Field, Header, houseTitle, PrimaryButton, TextInput } from '../ui'
+import { Field, Header, PrimaryButton, TextInput } from '../ui'
 
 export function SelectHouseScreen() {
   const user = useUser()
   const houses = useAppStore((s) => s.houses)
   const selectHouse = useAppStore((s) => s.selectHouse)
+  const logout = useAppStore((s) => s.logout)
   const [q, setQ] = useState('')
   const [picked, setPicked] = useState(user?.houseId ?? '')
   const [busy, setBusy] = useState(false)
@@ -23,11 +25,36 @@ export function SelectHouseScreen() {
     )
   }, [q, houses])
 
+  const byCity = useMemo(() => {
+    const map = new Map<string, typeof list>()
+    for (const h of list) {
+      const arr = map.get(h.city) || []
+      arr.push(h)
+      map.set(h.city, arr)
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ru'))
+  }, [list])
+
   return (
     <div className="shell-root">
       <div className="shell">
-        <Header title="Выбор дома" sub="Адрес и управляющая компания" />
-        <div className="content pad">
+        <Header
+          title="Выбор дома"
+          sub="Город · улица · УК"
+          back={
+            <button
+              type="button"
+              className="back-btn"
+              onClick={async () => {
+                await logout()
+                navigate('/login')
+              }}
+            >
+              <ChevronLeft size={18} /> Назад
+            </button>
+          }
+        />
+        <div className={`content pad house-pick${picked ? ' has-confirm' : ''}`}>
           <Field label="Поиск">
             <TextInput
               value={q}
@@ -37,22 +64,30 @@ export function SelectHouseScreen() {
           </Field>
           <div style={{ marginTop: 14 }}>
             {list.length === 0 ? (
-              <p className="muted">
-                Список домов пуст. Убедитесь, что API и MySQL запущены в папке bot.
-              </p>
+              <p className="muted">Список домов пуст. Убедитесь, что API и MySQL запущены.</p>
             ) : null}
-            {list.map((house) => (
-              <button
-                key={house.id}
-                type="button"
-                className={picked === house.id ? 'house-item picked' : 'house-item'}
-                onClick={() => setPicked(house.id)}
-              >
-                <strong>{houseTitle(house.city, house.address)}</strong>
-                <div className="muted">{house.uk}</div>
-              </button>
+            {byCity.map(([city, items]) => (
+              <div key={city} className="city-group">
+                <h3 className="city-group-title">{city}</h3>
+                {items.map((house) => (
+                  <button
+                    key={house.id}
+                    type="button"
+                    className={picked === house.id ? 'house-item picked' : 'house-item'}
+                    onClick={() => setPicked(house.id)}
+                  >
+                    <strong>{house.address}</strong>
+                    <div className="muted">{house.uk}</div>
+                    <div className="hint">
+                      {house.entrances} под. · {house.floors} эт.
+                    </div>
+                  </button>
+                ))}
+              </div>
             ))}
           </div>
+        </div>
+        <div className={`confirm-dock${picked ? ' show' : ''}`} aria-hidden={!picked}>
           <PrimaryButton
             disabled={!picked || busy}
             onClick={async () => {
@@ -97,14 +132,18 @@ export function PrivateAddressScreen() {
   return (
     <div className="shell-root">
       <div className="shell">
-        <Header title="Мой адрес" sub="Видно только вам" />
+        <Header
+          title="Мой адрес"
+          sub="Видно только вам"
+          back={
+            <button type="button" className="back-btn" onClick={() => navigate('/select-house')}>
+              <ChevronLeft size={18} /> Назад
+            </button>
+          }
+        />
         <div className="content pad">
-          <p className="muted">
-            Улица, подъезд и квартира не показываются соседям и в заявках УК. В заявке
-            уходит только адрес дома.
-          </p>
           <form onSubmit={onSubmit}>
-            <Field label="Улица">
+            <Field label="Улица / корпус">
               <TextInput value={street} onChange={(e) => setStreet(e.target.value)} />
             </Field>
             <Field label="Подъезд">
@@ -116,24 +155,24 @@ export function PrivateAddressScreen() {
             <PrimaryButton type="submit" disabled={busy}>
               {busy ? 'Сохранение…' : 'Сохранить'}
             </PrimaryButton>
-            <button
-              type="button"
-              className="btn btn-ghost btn-block"
-              style={{ marginTop: 10 }}
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true)
-                try {
-                  await skipPrivateAddress()
-                  navigate('/')
-                } finally {
-                  setBusy(false)
-                }
-              }}
-            >
-              Пропустить
-            </button>
           </form>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ width: '100%', marginTop: 10 }}
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true)
+              try {
+                await skipPrivateAddress()
+                navigate('/')
+              } finally {
+                setBusy(false)
+              }
+            }}
+          >
+            Пропустить
+          </button>
         </div>
       </div>
     </div>

@@ -1,0 +1,10 @@
+services:
+  web:
+    build: ./client
+    container_name: nash-dom-web
+    restart: unless-stopped
+    expose:
+      - "80"
+    # API проксирует корневой Caddy на /server → bot
+    depends_on:
+      - bot

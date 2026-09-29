@@ -7,8 +7,10 @@ import { config } from '../config.js';
 import {
   addMessage,
   bootstrapForUser,
+  claimParkingSpot,
   createSession,
   createTopic,
+  createWebTicket,
   createWebUser,
   deleteSession,
   digitsPhone,
@@ -17,12 +19,16 @@ import {
   listChats,
   listHouses,
   listMessages,
+  listParking,
   listTicketsForUser,
   listTopics,
   listWorks,
+  appealParkingSpot,
+  releaseParkingSpot,
   savePrivateAddress,
   selectUserHouse,
   serializeUserFixed,
+  setParkingActive,
   setTicketStatus,
   setWorkStatus,
   skipPrivateAddress,
@@ -34,7 +40,6 @@ import {
   validateContactHash,
   validateInitData,
 } from '../max-auth.js';
-import { updateUser } from '../db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const docsDir = path.resolve(__dirname, '../../docs');
@@ -159,14 +164,16 @@ function createServerRouter() {
   api.post(
     '/auth/register',
     asyncHandler(async (req, res) => {
-      const { name, phone, password, role, ukName } = req.body || {};
-      if (!phone || !password || String(password).length < 4) {
-        res.status(400).json({ error: 'Телефон и пароль (от 4 символов) обязательны' });
+      const { name, phone, password, role, ukName, city } = req.body || {};
+      if (!phone) {
+        res.status(400).json({ error: 'Укажите телефон' });
         return;
       }
       const existing = await findUserByPhone(phone);
-      if (existing?.password_hash) {
-        res.status(409).json({ error: 'Этот телефон уже зарегистрирован' });
+      if (existing) {
+        const token = await createSession(existing.id);
+        const data = await bootstrapForUser(existing);
+        res.json({ token, ...data });
         return;
       }
       const userRole = role === 'uk' ? 'uk' : 'resident';
@@ -179,26 +186,22 @@ function createServerRouter() {
         return;
       }
 
-      let user;
-      if (existing && !existing.password_hash) {
-        const { hashPassword } = await import('../web-db.js');
-        await updateUser(existing.id, {
-          password_hash: hashPassword(password),
-          first_name: name || existing.first_name,
-          uk_name: ukName || existing.uk_name,
-          role: existing.role || userRole,
-          onboarding_step: existing.onboarding_step === 'done' ? 'done' : existing.onboarding_step,
-        });
-        user = await findUserByPhone(phone);
-      } else {
-        user = await createWebUser({
-          name: String(name || (userRole === 'uk' ? 'Сотрудник УК' : 'Житель')).trim(),
-          phone: String(phone).trim(),
-          password: String(password),
-          role: userRole,
-          ukName: ukName ? String(ukName).trim() : undefined,
-        });
-      }
+      const citySlug = city
+        ? String(city)
+            .trim()
+            .toLowerCase()
+            .replace(/ё/g, 'е')
+            .replace(/\s+/g, '_')
+        : undefined;
+
+      const user = await createWebUser({
+        name: String(name || (userRole === 'uk' ? 'Сотрудник УК' : 'Житель')).trim(),
+        phone: String(phone).trim(),
+        password: password ? String(password) : undefined,
+        role: userRole,
+        ukName: ukName ? String(ukName).trim() : undefined,
+        citySlug,
+      });
 
       const token = await createSession(user.id);
       const data = await bootstrapForUser(user);
@@ -209,28 +212,25 @@ function createServerRouter() {
   api.post(
     '/auth/login',
     asyncHandler(async (req, res) => {
-      const { phone, password } = req.body || {};
-      if (!phone || !password) {
-        res.status(400).json({ error: 'Укажите телефон и пароль' });
+      const { phone, password, name, role, ukName } = req.body || {};
+      if (!phone) {
+        res.status(400).json({ error: 'Укажите телефон' });
         return;
       }
 
       let user = await findUserByPhone(phone);
       if (!user) {
         const d = digitsPhone(phone);
-        const role = d.endsWith('1') ? 'uk' : 'resident';
+        const userRole = role === 'uk' || (!role && d.endsWith('1')) ? 'uk' : 'resident';
         user = await createWebUser({
-          name: role === 'uk' ? 'Сотрудник УК' : 'Житель',
+          name: name || (userRole === 'uk' ? 'Сотрудник УК' : 'Житель'),
           phone: String(phone).trim(),
-          password: String(password),
-          role,
-          ukName: role === 'uk' ? 'УК (демо)' : undefined,
+          password: password ? String(password) : undefined,
+          role: userRole,
+          ukName: ukName || (userRole === 'uk' ? 'УК (демо)' : undefined),
         });
-      } else if (!user.password_hash) {
-        const { hashPassword } = await import('../web-db.js');
-        await updateUser(user.id, { password_hash: hashPassword(password) });
-        user = await findUserByPhone(phone);
-      } else if (!verifyPassword(String(password), user.password_hash)) {
+      } else if (password && user.password_hash && !verifyPassword(String(password), user.password_hash)) {
+        // Пароль в мини-приложении MAX не обязателен; проверяем только если передан
         res.status(401).json({ error: 'Неверный пароль' });
         return;
       }
@@ -376,12 +376,81 @@ function createServerRouter() {
     }),
   );
 
+  api.post(
+    '/tickets',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      if (req.user.role === 'uk') {
+        res.status(400).json({ error: 'Заявки создают жители' });
+        return;
+      }
+      const title = String(req.body?.title || '').trim();
+      const description = String(req.body?.description || '').trim();
+      const category = String(req.body?.category || 'other');
+      if (!title || !description) {
+        res.status(400).json({ error: 'Укажите заголовок и описание' });
+        return;
+      }
+      const ticket = await createWebTicket(req.user, { title, description, category });
+      res.status(201).json({ ticket, tickets: await listTicketsForUser(req.user) });
+    }),
+  );
+
   api.patch(
     '/tickets/:id',
     requireAuth,
     asyncHandler(async (req, res) => {
       const ticket = await setTicketStatus(req.user, req.params.id, req.body?.status);
       res.json({ ticket });
+    }),
+  );
+
+  api.get(
+    '/parking',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const houseId = req.query.houseId || req.user.house_id;
+      if (!houseId) {
+        res.json({ parking: [] });
+        return;
+      }
+      res.json({ parking: await listParking(houseId) });
+    }),
+  );
+
+  api.post(
+    '/parking/:id/claim',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const parking = await claimParkingSpot(req.user, req.params.id);
+      res.json({ parking });
+    }),
+  );
+
+  api.post(
+    '/parking/:id/release',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const parking = await releaseParkingSpot(req.user, req.params.id);
+      res.json({ parking });
+    }),
+  );
+
+  api.post(
+    '/parking/:id/appeal',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const result = await appealParkingSpot(req.user, req.params.id);
+      res.status(201).json(result);
+    }),
+  );
+
+  api.patch(
+    '/parking/:id',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const parking = await setParkingActive(req.user, req.params.id, Boolean(req.body?.active));
+      res.json({ parking });
     }),
   );
 

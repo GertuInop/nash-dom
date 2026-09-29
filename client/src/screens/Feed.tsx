@@ -1,16 +1,75 @@
-import { Building2, Inbox, Plus } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Building2, Car, Inbox, MessageSquarePlus, Plus, ClipboardList, X } from 'lucide-react'
+import { type FormEvent, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore, useUser } from '../store'
 import type { TopicCategory } from '../types'
-import { TOPIC_CATEGORIES } from '../types'
-import { categoryLabel, EmptyState, houseTitle } from '../ui'
+import { TOPIC_CATEGORIES, TICKET_CATEGORIES } from '../types'
+import { categoryLabel, EmptyState, Field, houseTitle, PrimaryButton, TextArea, TextInput } from '../ui'
+
+function CreateTicketModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const createTicket = useAppStore((s) => s.createTicket)
+  const [category, setCategory] = useState<TopicCategory>('accident')
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [error, setError] = useState('')
+
+  if (!open) return null
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault()
+    const result = await createTicket({ category, title, description })
+    if (!result.ok) {
+      setError(result.error ?? 'Не удалось создать заявку')
+      return
+    }
+    setTitle('')
+    setDescription('')
+    onClose()
+  }
+
+  return (
+    <div className="modal-back" onClick={onClose} role="presentation">
+      <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog">
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, flex: 1 }}>Новая заявка в УК</h3>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Закрыть">
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={onSubmit}>
+          <Field label="Категория">
+            <select value={category} onChange={(e) => setCategory(e.target.value as TopicCategory)}>
+              {TICKET_CATEGORIES.map((id) => (
+                <option key={id} value={id}>
+                  {categoryLabel(id)}
+                </option>
+              ))}
+              <option value="parking">Парковка</option>
+              <option value="other">Другое</option>
+            </select>
+          </Field>
+          <Field label="Заголовок">
+            <TextInput value={title} onChange={(e) => setTitle(e.target.value)} required />
+          </Field>
+          <Field label="Описание">
+            <TextArea value={description} onChange={(e) => setDescription(e.target.value)} required />
+          </Field>
+          <div className="photo-future">📷 Прикрепление фото — функционал в будущем</div>
+          {error ? <div className="error">{error}</div> : null}
+          <PrimaryButton type="submit">Отправить заявку</PrimaryButton>
+        </form>
+      </div>
+    </div>
+  )
+}
 
 export function FeedScreen() {
   const user = useUser()
   const topics = useAppStore((s) => s.topics)
   const houses = useAppStore((s) => s.houses)
   const [filter, setFilter] = useState<'all' | TopicCategory>('all')
+  const [fabOpen, setFabOpen] = useState(false)
+  const [ticketOpen, setTicketOpen] = useState(false)
   const navigate = useNavigate()
   const house = houses.find((h) => h.id === user?.houseId)
   const mine = topics.filter((t) => t.houseId === user?.houseId)
@@ -22,13 +81,22 @@ export function FeedScreen() {
   return (
     <>
       <div className="pad" style={{ paddingBottom: 8 }}>
-        <button type="button" className="house-teaser" onClick={() => navigate('/app/house')}>
-          <Building2 size={28} />
-          <span>
-            <strong>План дома</strong>
-            <span>Подъезды, этажи и статус работ</span>
-          </span>
-        </button>
+        <div className="home-quick">
+          <button type="button" className="house-teaser" onClick={() => navigate('/app/house')}>
+            <Building2 size={28} />
+            <span>
+              <strong>План дома</strong>
+              <span>Подъезды и этажи</span>
+            </span>
+          </button>
+          <button type="button" className="house-teaser parking-teaser" onClick={() => navigate('/app/parking')}>
+            <Car size={28} />
+            <span>
+              <strong>Парковка</strong>
+              <span>Свободные места</span>
+            </span>
+          </button>
+        </div>
         <div className="chips">
           <button
             type="button"
@@ -59,7 +127,7 @@ export function FeedScreen() {
           <EmptyState
             icon={<Inbox size={40} />}
             title="Лента пуста"
-            text="Пока нет событий. Создайте тему — она появится здесь и в чатах дома."
+            text="Создайте чат дома или заявку в УК кнопкой +"
           />
         ) : (
           list.map((topic) => (
@@ -81,16 +149,45 @@ export function FeedScreen() {
           ))
         )}
       </div>
+
       {user?.role === 'resident' ? (
-        <button
-          type="button"
-          className="fab"
-          aria-label="Создать тему"
-          onClick={() => navigate('/app/topics?new=1')}
-        >
-          <Plus size={22} />
-        </button>
+        <div className="fab-wrap">
+          {fabOpen ? (
+            <div className="fab-sheet">
+              <button
+                type="button"
+                className="fab-sheet-item"
+                onClick={() => {
+                  setFabOpen(false)
+                  setTicketOpen(true)
+                }}
+              >
+                <ClipboardList size={18} /> Создать заявку
+              </button>
+              <button
+                type="button"
+                className="fab-sheet-item"
+                onClick={() => {
+                  setFabOpen(false)
+                  navigate('/app/topics?new=1')
+                }}
+              >
+                <MessageSquarePlus size={18} /> Создать чат
+              </button>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className="fab"
+            aria-label="Создать"
+            onClick={() => setFabOpen((v) => !v)}
+          >
+            {fabOpen ? <X size={22} /> : <Plus size={22} />}
+          </button>
+        </div>
       ) : null}
+
+      <CreateTicketModal open={ticketOpen} onClose={() => setTicketOpen(false)} />
     </>
   )
 }

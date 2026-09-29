@@ -7,6 +7,7 @@ import { PrivateAddressScreen, SelectHouseScreen } from './screens/House'
 import { MyTicketsScreen, ProfileScreen } from './screens/Profile'
 import { AppShell } from './screens/Shell'
 import { BuildingScreen } from './screens/Building'
+import { ParkingScreen } from './screens/Parking'
 import { TopicsScreen } from './screens/Topics'
 import { UkPanelScreen } from './screens/UkPanel'
 import { useAppStore, useUser } from './store'
@@ -97,6 +98,7 @@ export default function App() {
               <Route path="/app" element={<AppShell />}>
                 <Route index element={<HomeScreen />} />
                 <Route path="house" element={<BuildingScreen />} />
+                <Route path="parking" element={<ParkingScreen />} />
                 <Route path="chats" element={<ChatsScreen />} />
                 <Route path="chats/:chatId" element={<ChatsScreen />} />
                 <Route path="topics" element={<TopicsScreen />} />

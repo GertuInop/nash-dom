@@ -10,7 +10,7 @@ export function AppShell() {
   const house = houses.find((h) => h.id === user?.houseId)
   const isChat = location.pathname.startsWith('/app/chats')
   const isUk = user?.role === 'uk'
-  const hideChrome = location.pathname === '/app/house'
+  const hideChrome = location.pathname === '/app/house' || location.pathname === '/app/parking'
 
   const nav = isUk
     ? [

@@ -1,3 +1,6 @@
+# Отдельный запуск только фронта (статика).
+# API должен быть доступен на том же origin через корневой Caddy,
+# либо используйте полный стек из корня: docker compose up
 services:
   web:
     build: .
@@ -5,11 +8,6 @@ services:
     restart: unless-stopped
     ports:
       - "${WEB_PORT:-5173}:80"
-    environment:
-      # Куда nginx проксирует /server (отдельный запуск без Caddy)
-      API_UPSTREAM: ${API_UPSTREAM:-http://host.docker.internal:3080}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
 networks:
   default:

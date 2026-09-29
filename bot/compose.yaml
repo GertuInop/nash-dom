@@ -49,14 +49,11 @@ services:
         condition: service_healthy
 
   web:
-    build: ../hackaton
+    build: ../client
     container_name: nash-dom-web
     restart: unless-stopped
     expose:
       - "80"
-    environment:
-      # На случай прямого доступа к web без Caddy
-      API_UPSTREAM: http://bot:3080
     depends_on:
       - bot
 

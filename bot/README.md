@@ -29,9 +29,9 @@
 | `certs/` | Сертификаты Минцифры для TLS к MAX API |
 | `caddy/Caddyfile` | Reverse proxy + автоматический HTTPS |
 | `docs/` | OpenAPI и DATA-API для контейнера |
-| `../hackaton/` | React мини-приложение |
+| `../client/` | React мини-приложение |
 
-Мини-приложение — React в `../hackaton`. Данные в общей MySQL `nash_dom`. Вход из MAX — Bridge `initData` и `POST /server/auth/max`.
+Мини-приложение — React в `../client`. Данные в общей MySQL `nash_dom`. Вход из MAX — Bridge `initData` и `POST /server/auth/max`.
 
 Публичные пути (Caddy):
 

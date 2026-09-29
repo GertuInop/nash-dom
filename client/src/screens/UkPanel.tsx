@@ -1,4 +1,4 @@
-import { ShieldAlert } from 'lucide-react'
+import { ChevronLeft, ShieldAlert } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore, useUser } from '../store'
 import { categoryLabel, EmptyState, houseTitle, statusClass, statusLabel } from '../ui'
@@ -24,6 +24,9 @@ export function UkPanelScreen() {
 
   return (
     <div className="pad">
+      <button type="button" className="back-btn" onClick={() => navigate('/app/house')}>
+        <ChevronLeft size={18} /> К дому
+      </button>
       <p className="muted">
         {house ? houseTitle(house.city, house.address) : 'Дом не выбран'} · {user?.ukName}
       </p>

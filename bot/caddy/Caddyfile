@@ -1,22 +1,21 @@
 {
-	# Email для Let's Encrypt (уведомления об истечении сертификата)
 	email {$ACME_EMAIL:admin@example.com}
 }
 
-{$DOMAIN:localhost} {
+# SITE_ADDRESS:
+#   локально:  http://127.0.0.1, http://localhost
+#   прод:      ваш-домен.ru   (Caddy сам поднимет HTTPS)
+{$SITE_ADDRESS:http://127.0.0.1, http://localhost} {
 	encode gzip
 
-	# MAX → webhook бота
 	handle /bot* {
 		reverse_proxy bot:3080
 	}
 
-	# Фронт → REST API
 	handle /server* {
 		reverse_proxy bot:3080
 	}
 
-	# Мини-приложение (React) на корне
 	handle {
 		reverse_proxy web:80
 	}

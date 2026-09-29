@@ -8,6 +8,17 @@ const HOUSE_SEED = [
   { id: 'h-vol', city: 'Калининград', address: 'ул. Володарского, 74', uk: 'УК «Преголя»', floors: 25, entrances: 8 },
   { id: 'h-len', city: 'Калининград', address: 'ул. Ленина, 25', uk: 'УК «Городские кварталы»', floors: 6, entrances: 3 },
   { id: 'h-shi', city: 'Калининград', address: 'ул. Шишканя, 12', uk: 'УК «Зелёный берег»', floors: 4, entrances: 2 },
+  { id: 'h-msk-arb', city: 'Москва', address: 'ул. Арбат, 10', uk: 'УК «Арбат Сервис»', floors: 7, entrances: 2 },
+  { id: 'h-msk-twr', city: 'Москва', address: 'ул. Тверская, 15', uk: 'УК «Столица»', floors: 12, entrances: 3 },
+  { id: 'h-msk-len', city: 'Москва', address: 'Ленинский пр-т, 88', uk: 'УК «Юго-Запад»', floors: 16, entrances: 4 },
+  { id: 'h-spb-nv', city: 'Санкт-Петербург', address: 'Невский пр-т, 42', uk: 'УК «Невский дом»', floors: 6, entrances: 2 },
+  { id: 'h-spb-vas', city: 'Санкт-Петербург', address: 'Васильевский остров, 7-я линия, 20', uk: 'УК «Василеостровская»', floors: 5, entrances: 3 },
+  { id: 'h-kzn-bm', city: 'Казань', address: 'ул. Баумана, 5', uk: 'УК «Казанский двор»', floors: 9, entrances: 3 },
+  { id: 'h-kzn-pr', city: 'Казань', address: 'пр. Победы, 120', uk: 'УК «Победа»', floors: 14, entrances: 4 },
+  { id: 'h-nsk-kr', city: 'Новосибирск', address: 'ул. Красный проспект, 50', uk: 'УК «Сибирь Жилсервис»', floors: 10, entrances: 3 },
+  { id: 'h-ekb-ml', city: 'Екатеринбург', address: 'ул. Малышева, 36', uk: 'УК «УралДом»', floors: 8, entrances: 2 },
+  { id: 'h-nch-mr', city: 'Набережные Челны', address: 'пр. Мира, 1', uk: 'УК «ЧелныСервис»', floors: 9, entrances: 4 },
+  { id: 'h-krd-kr', city: 'Краснодар', address: 'ул. Красная, 100', uk: 'УК «Кубань Дом»', floors: 11, entrances: 3 },
 ];
 
 const WORK_SEED = [
@@ -35,6 +46,11 @@ const WORK_SEED = [
   ['h-len', 2, 3, 'Ремонт перил', 'Окраска и крепление.', 'todo'],
   ['h-shi', 1, null, 'Газон и кустарники', 'Сезонная стрижка.', 'done'],
   ['h-shi', 2, 2, 'Домофон', 'Проверка связи с квартирами.', 'in_progress'],
+  ['h-msk-arb', 1, null, 'Уборка парадной', 'По графику дважды в неделю.', 'done'],
+  ['h-msk-twr', 1, 3, 'Лифт', 'Плановое ТО кабины.', 'in_progress'],
+  ['h-spb-nv', 1, null, 'Фасад', 'Мойка фасада после зимы.', 'todo'],
+  ['h-kzn-bm', 2, 5, 'Стояк ГВС', 'Замена участка трубы.', 'todo'],
+  ['h-nch-mr', 1, null, 'Двор', 'Ремонт детской площадки.', 'in_progress'],
 ];
 
 async function columnExists(table, column) {
@@ -65,6 +81,15 @@ export function verifyPassword(password, stored) {
 
 export function digitsPhone(phone) {
   return String(phone || '').replace(/\D/g, '');
+}
+
+function cityToSlug(city) {
+  return String(city || '')
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/\s+/g, '_')
+    .replace(/[^a-zа-я0-9_]/gi, '');
 }
 
 export async function ensureWebSchema() {
@@ -191,7 +216,24 @@ export async function ensureWebSchema() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS parking_spots (
+      id VARCHAR(64) NOT NULL,
+      house_id VARCHAR(64) NOT NULL,
+      label VARCHAR(32) NOT NULL,
+      row_idx INT NOT NULL DEFAULT 0,
+      col_idx INT NOT NULL DEFAULT 0,
+      active TINYINT(1) NOT NULL DEFAULT 1,
+      occupied TINYINT(1) NOT NULL DEFAULT 0,
+      occupied_by_user_id BIGINT UNSIGNED NULL,
+      occupied_at DATETIME NULL,
+      PRIMARY KEY (id),
+      KEY idx_parking_house (house_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
   await seedHousesAndWorks();
+  await seedParkingSpots();
 }
 
 async function seedHousesAndWorks() {
@@ -200,16 +242,16 @@ async function seedHousesAndWorks() {
     if (!existing.length) {
       let companyId = null;
       const [mc] = await pool.execute(
-        `SELECT id FROM management_companies WHERE name = :name AND city_slug = 'калининград' LIMIT 1`,
-        { name: h.uk },
+        `SELECT id FROM management_companies WHERE name = :name AND (city_slug = :slug OR city_slug IS NULL) LIMIT 1`,
+        { name: h.uk, slug: cityToSlug(h.city) },
       );
       if (mc.length) {
         companyId = mc[0].id;
       } else {
         const [ins] = await pool.execute(
           `INSERT INTO management_companies (name, city_slug, status, address)
-           VALUES (:name, 'калининград', 'approved', :address)`,
-          { name: h.uk, address: `${h.city}, ${h.address}` },
+           VALUES (:name, :slug, 'approved', :address)`,
+          { name: h.uk, slug: cityToSlug(h.city), address: `${h.city}, ${h.address}` },
         );
         companyId = ins.insertId;
       }
@@ -256,6 +298,40 @@ async function seedHousesAndWorks() {
   }
 }
 
+async function seedParkingSpots() {
+  for (const h of HOUSE_SEED) {
+    const [cnt] = await pool.execute(
+      'SELECT COUNT(*) AS c FROM parking_spots WHERE house_id = :id',
+      { id: h.id },
+    );
+    if (Number(cnt[0].c) > 0) continue;
+    const rows = 3;
+    const cols = 6;
+    let n = 0;
+    for (let r = 0; r < rows; r += 1) {
+      for (let c = 0; c < cols; c += 1) {
+        n += 1;
+        const id = `${h.id}-p${n}`;
+        const occupied = n % 5 === 0 ? 1 : 0;
+        await pool.execute(
+          `INSERT INTO parking_spots
+           (id, house_id, label, row_idx, col_idx, active, occupied, occupied_at)
+           VALUES (:id, :houseId, :label, :rowIdx, :colIdx, 1, :occupied, :occupiedAt)`,
+          {
+            id,
+            houseId: h.id,
+            label: `P${n}`,
+            rowIdx: r,
+            colIdx: c,
+            occupied,
+            occupiedAt: occupied ? new Date() : null,
+          },
+        );
+      }
+    }
+  }
+}
+
 export async function findUserByPhone(phone) {
   const d = digitsPhone(phone);
   if (!d) return null;
@@ -270,15 +346,16 @@ export async function findUserById(id) {
   return rows[0] || null;
 }
 
-export async function createWebUser({ name, phone, password, role, ukName }) {
-  const passwordHash = hashPassword(password);
+export async function createWebUser({ name, phone, password, role, ukName, citySlug }) {
+  const passwordHash = hashPassword(password || crypto.randomBytes(12).toString('hex'));
+  const slug = citySlug || 'калининград';
   const [result] = await pool.execute(
     `INSERT INTO users (
       max_user_id, first_name, phone, password_hash, role, uk_name,
       consent_accepted, consent_accepted_at, onboarding_step, uk_status, city_slug
     ) VALUES (
       NULL, :name, :phone, :passwordHash, :role, :ukName,
-      1, NOW(), 'done', :ukStatus, 'калининград'
+      1, NOW(), 'done', :ukStatus, :citySlug
     )`,
     {
       name,
@@ -287,6 +364,7 @@ export async function createWebUser({ name, phone, password, role, ukName }) {
       role,
       ukName: ukName || null,
       ukStatus: role === 'uk' ? 'approved' : 'none',
+      citySlug: slug,
     },
   );
 
@@ -294,8 +372,8 @@ export async function createWebUser({ name, phone, password, role, ukName }) {
   if (role === 'uk' && ukName) {
     const [ins] = await pool.execute(
       `INSERT INTO management_companies (name, city_slug, status, requested_by_user_id, phone)
-       VALUES (:name, 'калининград', 'approved', :userId, :phone)`,
-      { name: ukName, userId: result.insertId, phone },
+       VALUES (:name, :slug, 'approved', :userId, :phone)`,
+      { name: ukName, slug, userId: result.insertId, phone },
     );
     companyId = ins.insertId;
     await updateUser(result.insertId, { company_id: companyId });
@@ -715,16 +793,130 @@ export async function setWorkStatus(user, workId, status) {
   };
 }
 
+function serializeParking(row) {
+  return {
+    id: row.id,
+    houseId: row.house_id,
+    label: row.label,
+    row: row.row_idx,
+    col: row.col_idx,
+    active: Boolean(row.active),
+    occupied: Boolean(row.occupied),
+    occupiedByUserId: row.occupied_by_user_id ? String(row.occupied_by_user_id) : null,
+    occupiedAt: row.occupied_at
+      ? new Date(row.occupied_at).toLocaleString('ru-RU')
+      : null,
+  };
+}
+
+export async function listParking(houseId) {
+  const [rows] = await pool.execute(
+    `SELECT * FROM parking_spots WHERE house_id = :houseId
+     ORDER BY row_idx, col_idx, label`,
+    { houseId },
+  );
+  return rows.map(serializeParking);
+}
+
+export async function claimParkingSpot(user, spotId) {
+  const [rows] = await pool.execute('SELECT * FROM parking_spots WHERE id = :id LIMIT 1', {
+    id: spotId,
+  });
+  const spot = rows[0];
+  if (!spot) throw Object.assign(new Error('Место не найдено'), { status: 404 });
+  if (user.house_id && spot.house_id !== user.house_id) {
+    throw Object.assign(new Error('Чужой дом'), { status: 403 });
+  }
+  if (!spot.active) throw Object.assign(new Error('Место отключено УК'), { status: 400 });
+  if (spot.occupied) throw Object.assign(new Error('Место занято'), { status: 409 });
+
+  // освободить предыдущее место жителя
+  await pool.execute(
+    `UPDATE parking_spots
+     SET occupied = 0, occupied_by_user_id = NULL, occupied_at = NULL
+     WHERE occupied_by_user_id = :uid`,
+    { uid: user.id },
+  );
+  await pool.execute(
+    `UPDATE parking_spots
+     SET occupied = 1, occupied_by_user_id = :uid, occupied_at = NOW()
+     WHERE id = :id AND occupied = 0 AND active = 1`,
+    { uid: user.id, id: spotId },
+  );
+  const [fresh] = await pool.execute('SELECT * FROM parking_spots WHERE id = :id', { id: spotId });
+  if (!fresh[0]?.occupied) {
+    throw Object.assign(new Error('Не удалось занять место'), { status: 409 });
+  }
+  return listParking(spot.house_id);
+}
+
+export async function releaseParkingSpot(user, spotId) {
+  const [rows] = await pool.execute('SELECT * FROM parking_spots WHERE id = :id LIMIT 1', {
+    id: spotId,
+  });
+  const spot = rows[0];
+  if (!spot) throw Object.assign(new Error('Место не найдено'), { status: 404 });
+  const isOwner = Number(spot.occupied_by_user_id) === Number(user.id);
+  const isUk = user.role === 'uk' || user.role === 'admin';
+  if (!isOwner && !isUk) {
+    throw Object.assign(new Error('Нельзя освободить чужое место'), { status: 403 });
+  }
+  await pool.execute(
+    `UPDATE parking_spots
+     SET occupied = 0, occupied_by_user_id = NULL, occupied_at = NULL
+     WHERE id = :id`,
+    { id: spotId },
+  );
+  return listParking(spot.house_id);
+}
+
+export async function setParkingActive(user, spotId, active) {
+  if (user.role !== 'uk' && user.role !== 'admin') {
+    throw Object.assign(new Error('Только УК'), { status: 403 });
+  }
+  const [rows] = await pool.execute('SELECT * FROM parking_spots WHERE id = :id LIMIT 1', {
+    id: spotId,
+  });
+  const spot = rows[0];
+  if (!spot) throw Object.assign(new Error('Место не найдено'), { status: 404 });
+  await pool.execute(
+    `UPDATE parking_spots SET active = :active
+     ${active ? '' : ', occupied = 0, occupied_by_user_id = NULL, occupied_at = NULL'}
+     WHERE id = :id`,
+    { active: active ? 1 : 0, id: spotId },
+  );
+  return listParking(spot.house_id);
+}
+
+export async function appealParkingSpot(user, spotId) {
+  const [rows] = await pool.execute('SELECT * FROM parking_spots WHERE id = :id LIMIT 1', {
+    id: spotId,
+  });
+  const spot = rows[0];
+  if (!spot) throw Object.assign(new Error('Место не найдено'), { status: 404 });
+  if (!spot.occupied && spot.active) {
+    throw Object.assign(new Error('Место свободно — обжалование не нужно'), { status: 400 });
+  }
+  const ticket = await createWebTicket(user, {
+    title: `Обжалование парковки ${spot.label}`,
+    description: `Житель сообщает, что место ${spot.label} отмечено занятым/недоступным ошибочно. Просьба проверить и освободить при необходимости.`,
+    category: 'parking',
+  });
+  return { ticket, parking: await listParking(spot.house_id) };
+}
+
 export async function bootstrapForUser(user) {
   const houses = await listHouses();
   let chats = [];
   let messages = [];
   let topics = [];
   let works = [];
+  let parking = [];
   if (user.house_id) {
     chats = await listChats(user.house_id);
     topics = await listTopics(user.house_id);
     works = await listWorks(user.house_id);
+    parking = await listParking(user.house_id);
     const messageLists = await Promise.all(chats.map((c) => listMessages(c.id)));
     messages = messageLists.flat();
   }
@@ -737,5 +929,6 @@ export async function bootstrapForUser(user) {
     topics,
     tickets,
     works,
+    parking,
   };
 }

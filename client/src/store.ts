@@ -5,6 +5,7 @@ import type {
   EntranceWork,
   House,
   Message,
+  ParkingSpot,
   Ticket,
   TicketStatus,
   Toast,
@@ -28,6 +29,7 @@ export interface AppStore {
   topics: Topic[]
   tickets: Ticket[]
   works: EntranceWork[]
+  parking: ParkingSpot[]
   toast: Toast | null
   lastSendAt: number
   lastSendText: string
@@ -35,9 +37,9 @@ export interface AppStore {
   setToast: (toast: Toast | null) => void
   hydrate: () => Promise<void>
   applyBootstrap: (data: BootstrapPayload, token?: string) => void
-  login: (phone: string, password: string) => Promise<string | null>
-  registerResident: (name: string, phone: string, password: string) => Promise<string | null>
-  registerUk: (ukName: string, name: string, phone: string, password: string) => Promise<string | null>
+  login: (phone: string) => Promise<string | null>
+  registerResident: (name: string, phone: string, city?: string) => Promise<string | null>
+  registerUk: (ukName: string, name: string, phone: string, city?: string) => Promise<string | null>
   logout: () => Promise<void>
   selectHouse: (houseId: string) => Promise<void>
   savePrivateAddress: (street: string, entrance: string, flat: string) => Promise<void>
@@ -47,11 +49,18 @@ export interface AppStore {
     category: TopicCategory
     title: string
     description: string
-    photoLabel?: string
-    photoUrl?: string
   }) => Promise<{ ok: boolean; chatId?: string; error?: string }>
+  createTicket: (input: {
+    category: TopicCategory
+    title: string
+    description: string
+  }) => Promise<{ ok: boolean; error?: string }>
   setTicketStatus: (id: string, status: TicketStatus) => Promise<void>
   setWorkStatus: (id: string, status: WorkStatus) => Promise<void>
+  claimParking: (id: string) => Promise<string | null>
+  releaseParking: (id: string) => Promise<string | null>
+  appealParking: (id: string) => Promise<string | null>
+  setParkingActive: (id: string, active: boolean) => Promise<string | null>
 }
 
 function applyData(
@@ -72,6 +81,7 @@ function applyData(
     topics: data.topics || [],
     tickets: data.tickets || [],
     works: data.works || [],
+    parking: data.parking || [],
   })
 }
 
@@ -94,6 +104,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   topics: [],
   tickets: [],
   works: [],
+  parking: [],
   toast: null,
   lastSendAt: 0,
   lastSendText: '',
@@ -124,14 +135,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
         topics: [],
         tickets: [],
         works: [],
+        parking: [],
         apiError: apiDownMessage(e),
       })
     }
   },
 
-  login: async (phone, password) => {
+  login: async (phone) => {
     try {
-      const data = await clientApi.login(phone, password)
+      const data = await clientApi.login(phone)
       applyData(set, data, data.token)
       return null
     } catch (e) {
@@ -139,9 +151,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  registerResident: async (name, phone, password) => {
+  registerResident: async (name, phone, city) => {
     try {
-      const data = await clientApi.register({ name, phone, password, role: 'resident' })
+      const data = await clientApi.register({ name, phone, role: 'resident', city })
       applyData(set, data, data.token)
       return null
     } catch (e) {
@@ -149,9 +161,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  registerUk: async (ukName, name, phone, password) => {
+  registerUk: async (ukName, name, phone, city) => {
     try {
-      const data = await clientApi.register({ name, phone, password, role: 'uk', ukName })
+      const data = await clientApi.register({ name, phone, role: 'uk', ukName, city })
       applyData(set, data, data.token)
       return null
     } catch (e) {
@@ -175,6 +187,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       topics: [],
       tickets: [],
       works: [],
+      parking: [],
       apiError: null,
     })
   },
@@ -239,15 +252,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       const data = await clientApi.createTopic(input)
       applyData(set, data)
-      set({
-        toast: {
-          type: 'success',
-          text: data.tickets?.some((t) => t.title === input.title.trim())
-            ? 'Тема опубликована, заявка для УК создана'
-            : 'Тема опубликована',
-        },
-      })
+      set({ toast: { type: 'success', text: 'Тема (чат) создана' } })
       return { ok: true, chatId: data.chatId }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : 'Ошибка' }
+    }
+  },
+
+  createTicket: async (input) => {
+    try {
+      const { tickets } = await clientApi.createTicket(input)
+      set({
+        tickets,
+        toast: { type: 'success', text: 'Заявка отправлена в УК' },
+      })
+      return { ok: true }
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : 'Ошибка' }
     }
@@ -265,6 +284,53 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({
       works: get().works.map((item) => (item.id === id ? work : item)),
     })
+  },
+
+  claimParking: async (id) => {
+    try {
+      const { parking } = await clientApi.claimParking(id)
+      set({ parking, toast: { type: 'success', text: 'Место занято за вами' } })
+      return null
+    } catch (e) {
+      return apiDownMessage(e)
+    }
+  },
+
+  releaseParking: async (id) => {
+    try {
+      const { parking } = await clientApi.releaseParking(id)
+      set({ parking, toast: { type: 'info', text: 'Место освобождено' } })
+      return null
+    } catch (e) {
+      return apiDownMessage(e)
+    }
+  },
+
+  appealParking: async (id) => {
+    try {
+      const { parking, ticket } = await clientApi.appealParking(id)
+      set({
+        parking,
+        tickets: [...get().tickets.filter((t) => t.id !== ticket.id), ticket],
+        toast: { type: 'success', text: 'Обжалование отправлено руководителю УК' },
+      })
+      return null
+    } catch (e) {
+      return apiDownMessage(e)
+    }
+  },
+
+  setParkingActive: async (id, active) => {
+    try {
+      const { parking } = await clientApi.setParkingActive(id, active)
+      set({
+        parking,
+        toast: { type: 'info', text: active ? 'Место активировано' : 'Место отключено' },
+      })
+      return null
+    } catch (e) {
+      return apiDownMessage(e)
+    }
   },
 }))
 

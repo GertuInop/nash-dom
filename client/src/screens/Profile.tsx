@@ -1,4 +1,4 @@
-import { ChevronRight, Home, LogOut, MapPin, Ticket } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Home, LogOut, MapPin, Ticket } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore, useUser } from '../store'
 import { houseTitle, statusClass, statusLabel } from '../ui'
@@ -23,6 +23,9 @@ export function ProfileScreen() {
   return (
     <div>
       <div className="profile-hero">
+        <button type="button" className="back-btn back-btn-light" onClick={() => navigate('/app')}>
+          <ChevronLeft size={18} /> Назад
+        </button>
         <div className="avatar" style={{ width: 64, height: 64, fontSize: 22, marginBottom: 12 }}>
           {letter || 'Н'}
         </div>
@@ -96,8 +99,8 @@ export function MyTicketsScreen() {
 
   return (
     <div className="pad">
-      <button type="button" className="icon-btn" onClick={() => navigate('/app/profile')}>
-        Назад
+      <button type="button" className="back-btn" onClick={() => navigate('/app/profile')}>
+        <ChevronLeft size={18} /> Назад
       </button>
       {tickets.length === 0 ? (
         <p className="muted">Обращений нет. Тема «Авария» или «Качество услуг» создаёт заявку УК.</p>

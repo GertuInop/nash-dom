@@ -55,6 +55,18 @@ export interface EntranceWork {
   status: WorkStatus
 }
 
+export interface ParkingSpot {
+  id: string
+  houseId: string
+  label: string
+  row: number
+  col: number
+  active: boolean
+  occupied: boolean
+  occupiedByUserId: string | null
+  occupiedAt: string | null
+}
+
 export function workLabel(status: WorkStatus) {
   if (status === 'done') return 'Сделано'
   if (status === 'in_progress') return 'В работе'

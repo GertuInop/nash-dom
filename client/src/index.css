@@ -466,9 +466,6 @@ h1 {
 }
 
 .fab {
-  position: absolute;
-  right: 16px;
-  bottom: 84px;
   width: 52px;
   height: 52px;
   border: 0;
@@ -478,7 +475,18 @@ h1 {
   display: grid;
   place-items: center;
   box-shadow: 0 10px 22px rgba(30, 79, 214, 0.35);
-  z-index: 5;
+  flex-shrink: 0;
+}
+
+.fab-wrap {
+  position: absolute;
+  right: 16px;
+  bottom: 84px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
 }
 
 .pad {
@@ -865,7 +873,7 @@ h1 {
     display: none;
   }
 
-  .fab {
+  .fab-wrap {
     bottom: 24px;
   }
 
@@ -1303,4 +1311,340 @@ h1 {
 .field textarea,
 .field select {
   border-radius: 12px;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 0;
+  margin-bottom: 8px;
+}
+
+.back-btn-light {
+  color: #fff;
+  opacity: 0.95;
+}
+
+.photo-future {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f2f4f8;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.home-quick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.parking-teaser {
+  background: linear-gradient(135deg, #0b2a6b, #1e4fd6) !important;
+}
+
+.fab-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  min-width: 200px;
+}
+
+.fab-sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: #fff;
+  box-shadow: var(--shadow);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.confirm-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), #fff 28%);
+  transform: translateY(110%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.28s ease, opacity 0.2s ease;
+}
+
+.confirm-dock.show {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.house-pick.has-confirm {
+  padding-bottom: 88px;
+}
+
+.confirm-dock .btn {
+  width: 100%;
+}
+
+.city-group-title {
+  margin: 16px 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+
+.building-silhouette {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.building-wing {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #eaf0ff, #fff);
+  padding: 10px 8px 12px;
+  cursor: pointer;
+  text-align: center;
+  font: inherit;
+}
+
+.building-wing.active {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px rgba(30, 79, 214, 0.2);
+}
+
+.building-wing-floors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.building-window {
+  height: 10px;
+  border-radius: 3px;
+  background: rgba(11, 42, 107, 0.18);
+}
+
+.building-wing.tone-todo .building-window {
+  background: rgba(217, 45, 32, 0.35);
+}
+
+.building-wing.tone-in_progress .building-window {
+  background: rgba(220, 104, 3, 0.4);
+}
+
+.building-wing strong {
+  display: block;
+  font-size: 18px;
+}
+
+.building-wing span {
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.floor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+}
+
+.floor-tile {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  padding: 12px 8px;
+  cursor: pointer;
+  font: inherit;
+  text-align: center;
+}
+
+.floor-tile b {
+  display: block;
+  font-size: 18px;
+}
+
+.floor-tile span {
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.floor-tile.active {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.floor-tile.tone-todo {
+  border-color: #fecdca;
+}
+
+.floor-tile.tone-in_progress {
+  border-color: #fedf89;
+}
+
+.parking-jump {
+  margin-top: 12px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.parking-page {
+  padding-bottom: 24px;
+}
+
+.parking-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.parking-hero h2 {
+  margin: 4px 0 6px;
+  font-size: 22px;
+}
+
+.parking-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.parking-stats div {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px;
+  text-align: center;
+}
+
+.parking-stats b {
+  display: block;
+  font-size: 18px;
+}
+
+.parking-stats span {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.parking-lot {
+  margin: 0 16px;
+  padding: 16px 12px 20px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #2f3b4a, #1c2430);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.parking-road {
+  height: 10px;
+  margin-bottom: 14px;
+  border-radius: 999px;
+  background: repeating-linear-gradient(
+    90deg,
+    #f5f5f5 0 18px,
+    transparent 18px 28px
+  );
+  opacity: 0.55;
+}
+
+.parking-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.parking-spot {
+  position: relative;
+  min-height: 64px;
+  border: 1px dashed rgba(255, 255, 255, 0.35);
+  border-radius: 10px;
+  background: rgba(56, 161, 105, 0.35);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  padding: 8px 4px;
+  text-align: center;
+}
+
+.parking-spot span {
+  display: block;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.parking-spot em {
+  display: block;
+  font-style: normal;
+  font-size: 10px;
+  opacity: 0.9;
+  margin-top: 4px;
+}
+
+.parking-spot.free {
+  background: rgba(56, 161, 105, 0.45);
+}
+
+.parking-spot.busy {
+  background: rgba(148, 163, 184, 0.55);
+  cursor: pointer;
+}
+
+.parking-spot.mine {
+  background: rgba(30, 79, 214, 0.7);
+  border-style: solid;
+}
+
+.parking-spot.off {
+  background: rgba(71, 85, 105, 0.55);
+  opacity: 0.7;
+}
+
+.parking-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+@media (max-width: 520px) {
+  .home-quick {
+    grid-template-columns: 1fr;
+  }
+  .parking-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }

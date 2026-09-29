@@ -121,6 +121,11 @@ export function ChatsScreen() {
 
   const list = (
     <div className="chat-list">
+      <div className="pad" style={{ paddingBottom: 0 }}>
+        <button type="button" className="back-btn" onClick={() => navigate('/app')}>
+          <ChevronLeft size={18} /> Назад
+        </button>
+      </div>
       {chats.length === 0 ? (
         <EmptyState
           icon={<MessageCircle size={40} />}
