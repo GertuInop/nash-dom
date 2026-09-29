@@ -2,55 +2,38 @@ import crypto from 'node:crypto';
 import { pool, updateUser } from './db.js';
 import { createRequest, getRequestById, listResidentRequests, listCompanyRequests, updateRequestStatus } from './tickets-db.js';
 
-const HOUSE_SEED = [
-  { id: 'h-ural', city: 'Калининград', address: 'ул. Уральская, 3', uk: 'УК «Балтийский дом»', floors: 9, entrances: 4 },
-  { id: 'h-sov', city: 'Калининград', address: 'ул. Советская, 113а', uk: 'УК «Центральная»', floors: 5, entrances: 3 },
-  { id: 'h-vol', city: 'Калининград', address: 'ул. Володарского, 74', uk: 'УК «Преголя»', floors: 25, entrances: 8 },
-  { id: 'h-len', city: 'Калининград', address: 'ул. Ленина, 25', uk: 'УК «Городские кварталы»', floors: 6, entrances: 3 },
-  { id: 'h-shi', city: 'Калининград', address: 'ул. Шишканя, 12', uk: 'УК «Зелёный берег»', floors: 4, entrances: 2 },
-  { id: 'h-msk-arb', city: 'Москва', address: 'ул. Арбат, 10', uk: 'УК «Арбат Сервис»', floors: 7, entrances: 2 },
-  { id: 'h-msk-twr', city: 'Москва', address: 'ул. Тверская, 15', uk: 'УК «Столица»', floors: 12, entrances: 3 },
-  { id: 'h-msk-len', city: 'Москва', address: 'Ленинский пр-т, 88', uk: 'УК «Юго-Запад»', floors: 16, entrances: 4 },
-  { id: 'h-spb-nv', city: 'Санкт-Петербург', address: 'Невский пр-т, 42', uk: 'УК «Невский дом»', floors: 6, entrances: 2 },
-  { id: 'h-spb-vas', city: 'Санкт-Петербург', address: 'Васильевский остров, 7-я линия, 20', uk: 'УК «Василеостровская»', floors: 5, entrances: 3 },
-  { id: 'h-kzn-bm', city: 'Казань', address: 'ул. Баумана, 5', uk: 'УК «Казанский двор»', floors: 9, entrances: 3 },
-  { id: 'h-kzn-pr', city: 'Казань', address: 'пр. Победы, 120', uk: 'УК «Победа»', floors: 14, entrances: 4 },
-  { id: 'h-nsk-kr', city: 'Новосибирск', address: 'ул. Красный проспект, 50', uk: 'УК «Сибирь Жилсервис»', floors: 10, entrances: 3 },
-  { id: 'h-ekb-ml', city: 'Екатеринбург', address: 'ул. Малышева, 36', uk: 'УК «УралДом»', floors: 8, entrances: 2 },
-  { id: 'h-nch-mr', city: 'Набережные Челны', address: 'пр. Мира, 1', uk: 'УК «ЧелныСервис»', floors: 9, entrances: 4 },
-  { id: 'h-krd-kr', city: 'Краснодар', address: 'ул. Красная, 100', uk: 'УК «Кубань Дом»', floors: 11, entrances: 3 },
+const HOUSE_SEED = [];
+
+const WORK_SEED = [];
+
+/** Старые демо-дома из сидов — удаляем при старте */
+const DEMO_HOUSE_IDS = [
+  'h-ural', 'h-sov', 'h-vol', 'h-len', 'h-shi',
+  'h-msk-arb', 'h-msk-twr', 'h-msk-len',
+  'h-spb-nv', 'h-spb-vas',
+  'h-kzn-bm', 'h-kzn-pr',
+  'h-nsk-kr', 'h-ekb-ml', 'h-nch-mr', 'h-krd-kr',
 ];
 
-const WORK_SEED = [
-  ['h-ural', 1, 3, 'Замена стояка ХВС', 'Труба на 3 этаже. Осталось опрессовать и закрыть штробы.', 'in_progress'],
-  ['h-ural', 1, null, 'Уборка подъезда', 'Мойка ступеней и перил — два раза в неделю.', 'done'],
-  ['h-ural', 1, 1, 'Ремонт входной группы', 'Доделать доводчик двери и заменить разбитое стекло.', 'todo'],
-  ['h-ural', 2, 5, 'Протечка стояка', 'Нужна аварийная бригада, вода на лестничной клетке.', 'todo'],
-  ['h-ural', 2, null, 'Лифт: ТО', 'Плановое техобслуживание кабины выполнено.', 'done'],
-  ['h-ural', 2, 9, 'Кровля над 2 подъездом', 'Заменить участок мягкой кровли, устранить протечки.', 'in_progress'],
-  ['h-ural', 3, null, 'Освещение', 'Поставлены датчики движения, лампы заменены.', 'done'],
-  ['h-ural', 3, 4, 'Почтовые ящики', 'Вырваны дверцы, нужна замена блока ящиков.', 'todo'],
-  ['h-ural', 3, 2, 'Покраска стен', 'После протечки — высушить и покрасить пролёт 2 этажа.', 'todo'],
-  ['h-ural', 4, null, 'Пандус и поручни', 'Пандус установлен, поручень доделать у двери.', 'in_progress'],
-  ['h-ural', 4, 6, 'Окна на лестнице', 'Заменить одно стеклопакет на 6 этаже.', 'todo'],
-  ['h-ural', 4, null, 'Дезинсекция', 'Обработка проведена 12.09.', 'done'],
-  ['h-sov', 1, null, 'Капремонт фасада', 'Леса стоят, работы до октября.', 'in_progress'],
-  ['h-sov', 1, 1, 'Козырёк', 'Козырёк над входом смонтирован.', 'done'],
-  ['h-sov', 2, 5, 'Кровля', 'Нужен ремонт примыкания к вентканалу.', 'todo'],
-  ['h-sov', 2, null, 'Уборка', 'График соблюдается.', 'done'],
-  ['h-sov', 3, null, 'Лифт не работает', 'Ждём запчасть, кабину не запускать.', 'todo'],
-  ['h-sov', 3, 2, 'Межпанельные швы', 'Герметизация шва на 2 этаже в работе.', 'in_progress'],
-  ['h-vol', 1, null, 'Благоустройство двора', 'Установка скамеек и урн.', 'in_progress'],
-  ['h-vol', 2, 4, 'Замена ламп', 'Лестничные площадки 3–5 этажей.', 'todo'],
-  ['h-len', 1, null, 'Уборка территории', 'По графику.', 'done'],
-  ['h-len', 2, 3, 'Ремонт перил', 'Окраска и крепление.', 'todo'],
-  ['h-shi', 1, null, 'Газон и кустарники', 'Сезонная стрижка.', 'done'],
-  ['h-shi', 2, 2, 'Домофон', 'Проверка связи с квартирами.', 'in_progress'],
-  ['h-msk-arb', 1, null, 'Уборка парадной', 'По графику дважды в неделю.', 'done'],
-  ['h-msk-twr', 1, 3, 'Лифт', 'Плановое ТО кабины.', 'in_progress'],
-  ['h-spb-nv', 1, null, 'Фасад', 'Мойка фасада после зимы.', 'todo'],
-  ['h-kzn-bm', 2, 5, 'Стояк ГВС', 'Замена участка трубы.', 'todo'],
-  ['h-nch-mr', 1, null, 'Двор', 'Ремонт детской площадки.', 'in_progress'],
+/** УК, созданные сидами домов (не через бота) */
+const DEMO_UK_NAMES = [
+  'УК «Балтийский дом»',
+  'УК «Центральная»',
+  'УК «Преголя»',
+  'УК «Городские кварталы»',
+  'УК «Зелёный берег»',
+  'УК «Арбат Сервис»',
+  'УК «Столица»',
+  'УК «Юго-Запад»',
+  'УК «Невский дом»',
+  'УК «Василеостровская»',
+  'УК «Казанский двор»',
+  'УК «Победа»',
+  'УК «Сибирь Жилсервис»',
+  'УК «УралДом»',
+  'УК «ЧелныСервис»',
+  'УК «Кубань Дом»',
+  'УК (демо)',
 ];
 
 async function columnExists(table, column) {
@@ -233,6 +216,7 @@ export async function ensureWebSchema() {
   `);
 
   await seedHousesAndWorks();
+  await cleanupDemoHouses();
   await seedParkingSpots();
 }
 
@@ -298,8 +282,78 @@ async function seedHousesAndWorks() {
   }
 }
 
+async function cleanupDemoHouses() {
+  if (!DEMO_HOUSE_IDS.length) return;
+  const placeholders = DEMO_HOUSE_IDS.map(() => '?').join(',');
+
+  let linkedCompanyIds = [];
+  try {
+    const [rows] = await pool.execute(
+      `SELECT DISTINCT company_id AS id FROM houses
+       WHERE id IN (${placeholders}) AND company_id IS NOT NULL`,
+      DEMO_HOUSE_IDS,
+    );
+    linkedCompanyIds = rows.map((r) => r.id).filter(Boolean);
+  } catch {
+    linkedCompanyIds = [];
+  }
+
+  await pool.execute(
+    `DELETE FROM parking_spots WHERE house_id IN (${placeholders})`,
+    DEMO_HOUSE_IDS,
+  ).catch(() => {});
+  await pool.execute(
+    `DELETE FROM entrance_works WHERE house_id IN (${placeholders})`,
+    DEMO_HOUSE_IDS,
+  ).catch(() => {});
+  await pool.execute(
+    `UPDATE users SET house_id = NULL WHERE house_id IN (${placeholders})`,
+    DEMO_HOUSE_IDS,
+  ).catch(() => {});
+  await pool.execute(
+    `DELETE FROM houses WHERE id IN (${placeholders})`,
+    DEMO_HOUSE_IDS,
+  ).catch(() => {});
+
+  // Сидовые УК без заявки через бота
+  if (DEMO_UK_NAMES.length) {
+    const namePh = DEMO_UK_NAMES.map(() => '?').join(',');
+    await pool.execute(
+      `UPDATE users u
+       INNER JOIN management_companies mc ON mc.id = u.company_id
+       SET u.company_id = NULL
+       WHERE mc.name IN (${namePh}) AND mc.requested_by_user_id IS NULL`,
+      DEMO_UK_NAMES,
+    ).catch(() => {});
+    await pool.execute(
+      `DELETE FROM management_companies
+       WHERE name IN (${namePh}) AND requested_by_user_id IS NULL`,
+      DEMO_UK_NAMES,
+    ).catch(() => {});
+  }
+
+  if (linkedCompanyIds.length) {
+    const cidPh = linkedCompanyIds.map(() => '?').join(',');
+    await pool.execute(
+      `DELETE FROM management_companies
+       WHERE id IN (${cidPh}) AND requested_by_user_id IS NULL`,
+      linkedCompanyIds,
+    ).catch(() => {});
+  }
+
+  // Веб-демо без привязки к MAX (логин по телефону)
+  await pool.execute(
+    `DELETE FROM web_sessions WHERE user_id IN (SELECT id FROM (SELECT id FROM users WHERE max_user_id IS NULL) t)`,
+  ).catch(() => {});
+  await pool.execute(
+    `DELETE FROM notification_settings WHERE user_id IN (SELECT id FROM (SELECT id FROM users WHERE max_user_id IS NULL) t)`,
+  ).catch(() => {});
+  await pool.execute(`DELETE FROM users WHERE max_user_id IS NULL`).catch(() => {});
+}
+
 async function seedParkingSpots() {
-  for (const h of HOUSE_SEED) {
+  const [houses] = await pool.execute('SELECT id FROM houses');
+  for (const h of houses) {
     const [cnt] = await pool.execute(
       'SELECT COUNT(*) AS c FROM parking_spots WHERE house_id = :id',
       { id: h.id },
@@ -418,9 +472,12 @@ export async function deleteSession(token) {
 export function serializeUserFixed(user) {
   if (!user) return null;
   const role = user.role === 'uk' || (user.role === 'admin' && user.company_id) ? 'uk' : 'resident';
+  const name = [user.first_name, user.last_name].filter(Boolean).join(' ')
+    || user.full_name
+    || 'Пользователь';
   return {
     id: String(user.id),
-    name: user.first_name || user.full_name || 'Пользователь',
+    name,
     phone: user.phone || '',
     role,
     houseId: user.house_id || undefined,
@@ -447,6 +504,109 @@ export async function listHouses() {
     floors: Number(r.floors) || 5,
     entrances: Number(r.entrances) || 2,
   }));
+}
+
+function cityLabelFromSlug(slug) {
+  if (!slug) return 'Город';
+  return String(slug)
+    .replace(/_/g, ' ')
+    .replace(/(^|\s)\S/g, (m) => m.toUpperCase());
+}
+
+export async function listApprovedCompanies() {
+  const [rows] = await pool.execute(
+    `SELECT id, name, city_slug, phone, email, address, status
+     FROM management_companies
+     WHERE status = 'approved'
+     ORDER BY city_slug ASC, name ASC`,
+  );
+  return rows.map((r) => ({
+    id: String(r.id),
+    name: r.name,
+    city: cityLabelFromSlug(r.city_slug),
+    citySlug: r.city_slug || '',
+    phone: r.phone || '',
+    email: r.email || '',
+    address: r.address || '',
+    status: r.status,
+  }));
+}
+
+export async function ensureHouseForCompany(company) {
+  if (!company?.id) return null;
+  const [existing] = await pool.execute(
+    'SELECT * FROM houses WHERE company_id = :cid ORDER BY id ASC LIMIT 1',
+    { cid: company.id },
+  );
+  if (existing[0]) return existing[0];
+
+  const id = `c-${company.id}`;
+  const city = cityLabelFromSlug(company.city_slug);
+  const address = company.address || company.name;
+  await pool.execute(
+    `INSERT INTO houses (id, city, address, uk_name, company_id, floors, entrances)
+     VALUES (:id, :city, :address, :uk, :cid, 5, 2)
+     ON DUPLICATE KEY UPDATE
+       city = VALUES(city), address = VALUES(address), uk_name = VALUES(uk_name),
+       company_id = VALUES(company_id)`,
+    { id, city, address, uk: company.name, cid: company.id },
+  );
+  await ensureHouseChats(id);
+
+  const [cnt] = await pool.execute(
+    'SELECT COUNT(*) AS c FROM parking_spots WHERE house_id = :id',
+    { id },
+  );
+  if (Number(cnt[0].c) === 0) {
+    let n = 0;
+    for (let r = 0; r < 3; r += 1) {
+      for (let c = 0; c < 6; c += 1) {
+        n += 1;
+        await pool.execute(
+          `INSERT INTO parking_spots
+           (id, house_id, label, row_idx, col_idx, active, occupied, occupied_at)
+           VALUES (:pid, :houseId, :label, :rowIdx, :colIdx, 1, 0, NULL)`,
+          { pid: `${id}-p${n}`, houseId: id, label: `P${n}`, rowIdx: r, colIdx: c },
+        );
+      }
+    }
+  }
+
+  return getHouse(id);
+}
+
+export async function selectUserCompany(userId, companyId) {
+  const [rows] = await pool.execute(
+    `SELECT * FROM management_companies WHERE id = :id AND status = 'approved' LIMIT 1`,
+    { id: companyId },
+  );
+  const company = rows[0];
+  if (!company) throw Object.assign(new Error('УК не найдена'), { status: 404 });
+
+  const house = await ensureHouseForCompany(company);
+  const user = await findUserById(userId);
+  await updateUser(userId, {
+    company_id: company.id,
+    house_id: house.id,
+    uk_name: company.name,
+    city_slug: company.city_slug || user.city_slug,
+    skipped_address: user.role === 'uk' ? 1 : user.skipped_address || 0,
+  });
+  return findUserById(userId);
+}
+
+/** Если у пользователя уже есть УК из бота — привязать дом */
+export async function ensureUserHouseFromCompany(user) {
+  if (!user?.company_id || user.house_id) return user;
+  const [rows] = await pool.execute(
+    'SELECT * FROM management_companies WHERE id = :id LIMIT 1',
+    { id: user.company_id },
+  );
+  const company = rows[0];
+  if (!company) return user;
+  const house = await ensureHouseForCompany(company);
+  await updateUser(user.id, { house_id: house.id, uk_name: user.uk_name || company.name });
+  return findUserById(user.id);
 }
 
 export async function getHouse(houseId) {
@@ -906,7 +1066,9 @@ export async function appealParkingSpot(user, spotId) {
 }
 
 export async function bootstrapForUser(user) {
+  user = await ensureUserHouseFromCompany(user);
   const houses = await listHouses();
+  const companies = await listApprovedCompanies();
   let chats = [];
   let messages = [];
   let topics = [];
@@ -924,6 +1086,7 @@ export async function bootstrapForUser(user) {
   return {
     user: serializeUserFixed(user),
     houses,
+    companies,
     chats,
     messages,
     topics,

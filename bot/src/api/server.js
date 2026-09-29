@@ -17,6 +17,7 @@ import {
   findUserByPhone,
   getSessionUser,
   listChats,
+  listApprovedCompanies,
   listHouses,
   listMessages,
   listParking,
@@ -26,6 +27,7 @@ import {
   appealParkingSpot,
   releaseParkingSpot,
   savePrivateAddress,
+  selectUserCompany,
   selectUserHouse,
   serializeUserFixed,
   setParkingActive,
@@ -263,6 +265,28 @@ function createServerRouter() {
     requireAuth,
     asyncHandler(async (_req, res) => {
       res.json({ houses: await listHouses() });
+    }),
+  );
+
+  api.get(
+    '/companies',
+    requireAuth,
+    asyncHandler(async (_req, res) => {
+      res.json({ companies: await listApprovedCompanies() });
+    }),
+  );
+
+  api.post(
+    '/me/company',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const companyId = req.body?.companyId;
+      if (!companyId) {
+        res.status(400).json({ error: 'companyId обязателен' });
+        return;
+      }
+      const user = await selectUserCompany(req.user.id, companyId);
+      res.json(await bootstrapForUser(user));
     }),
   );
 

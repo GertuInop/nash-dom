@@ -23,9 +23,21 @@ export function setToken(token: string | null) {
   else localStorage.removeItem(TOKEN_KEY)
 }
 
+export interface Company {
+  id: string
+  name: string
+  city: string
+  citySlug: string
+  phone: string
+  email: string
+  address: string
+  status: string
+}
+
 export interface BootstrapPayload {
   user: User
   houses?: House[]
+  companies?: Company[]
   chats: Chat[]
   messages: Message[]
   topics: Topic[]
@@ -56,28 +68,30 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   return data as T
 }
 
-export const clientApi = {
-  login: (phone: string, extra?: { name?: string; role?: string; ukName?: string }) =>
-    api<BootstrapPayload & { token: string }>('/server/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ phone, ...extra }),
-    }),
+export function getMaxInitData(): string {
+  return String(window.WebApp?.initData || '').trim()
+}
 
-  register: (body: {
-    name: string
-    phone: string
-    role: 'resident' | 'uk'
-    ukName?: string
-    city?: string
-  }) =>
-    api<BootstrapPayload & { token: string }>('/server/auth/register', {
+export function getMaxPlatform(): string | null {
+  return window.WebApp?.platform || null
+}
+
+export const clientApi = {
+  loginMax: (initData: string, platform?: string | null) =>
+    api<BootstrapPayload & { token: string }>('/server/auth/max', {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: JSON.stringify({ initData, platform: platform || undefined }),
     }),
 
   logout: () => api<{ ok: boolean }>('/server/auth/logout', { method: 'POST' }),
 
   me: () => api<BootstrapPayload>('/server/me'),
+
+  selectCompany: (companyId: string) =>
+    api<BootstrapPayload>('/server/me/company', {
+      method: 'POST',
+      body: JSON.stringify({ companyId }),
+    }),
 
   selectHouse: (houseId: string) =>
     api<BootstrapPayload>('/server/me/house', {

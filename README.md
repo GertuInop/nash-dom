@@ -166,7 +166,7 @@ Frontend: `react`, `vite`.
 
 1. `docker compose up --build -d`
 2. `curl http://127.0.0.1:3080/server/status` → `ok: true`
-3. `curl -X POST http://127.0.0.1:3080/server/auth/login -H "Content-Type: application/json" -d "{\"phone\":\"+79001234567\",\"password\":\"1234\"}"` → есть `token`
+3. `curl -X POST http://127.0.0.1:3080/server/auth/max -H "Content-Type: application/json" -d "{\"initData\":\"...\"}"` → есть `token` (initData из MAX Bridge)
 4. Открыть `http://127.0.0.1/` (Caddy) → вход теми же данными → кабинет жителя
 5. Повторить логин с `+79001234561` → кабинет УК
 
@@ -176,7 +176,7 @@ Frontend: `react`, `vite`.
 2. DNS и `docker compose up --build -d`
 3. В кабинете MAX: URL мини-приложения = `MINIAPP_URL`
 4. Написать боту `/start` → онбординг → кнопка «Открыть Наш Дом»
-5. В мини-приложении авторизация через Bridge (`initData`) или демо-логин
+5. В мини-приложении авторизация только через Bridge (`window.WebApp.initData` → `POST /server/auth/max`); экрана входа нет
 
 ## Ожидаемое поведение
 

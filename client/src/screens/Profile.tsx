@@ -71,9 +71,9 @@ export function ProfileScreen() {
           </button>
         </>
       ) : null}
-      <button type="button" className="menu-item" onClick={() => navigate('/select-house')}>
+      <button type="button" className="menu-item" onClick={() => navigate('/select-uk')}>
         <Home size={18} />
-        <span className="grow">Сменить дом</span>
+        <span className="grow">Сменить УК</span>
         <ChevronRight size={16} />
       </button>
       <button
@@ -81,11 +81,11 @@ export function ProfileScreen() {
         className="menu-item"
         onClick={async () => {
           await logout()
-          navigate('/login')
+          navigate('/')
         }}
       >
         <LogOut size={18} />
-        <span className="grow">Выйти</span>
+        <span className="grow">Сбросить сессию</span>
       </button>
     </div>
   )

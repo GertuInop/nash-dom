@@ -291,6 +291,36 @@ paths:
         "200":
           description: OK
 
+  /server/companies:
+    get:
+      tags: [companies]
+      summary: Одобренные УК из базы (без демо-сидов)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  /server/me/company:
+    post:
+      tags: [me]
+      summary: Выбрать УК (привязка company_id и дома)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [companyId]
+              properties:
+                companyId:
+                  type: string
+      responses:
+        "200":
+          description: OK
+
   /server/me/house:
     post:
       tags: [me]

@@ -253,13 +253,20 @@ export async function ensureUser(ctxUser) {
     return existing;
   }
 
-  return createUser({
-    maxUserId: ctxUser.user_id,
-    username: ctxUser.username,
-    firstName: ctxUser.first_name,
-    lastName: ctxUser.last_name,
-    isAdmin: config.adminUserIds.includes(ctxUser.user_id),
-  });
+  try {
+    return await createUser({
+      maxUserId: ctxUser.user_id,
+      username: ctxUser.username,
+      firstName: ctxUser.first_name,
+      lastName: ctxUser.last_name,
+      isAdmin: config.adminUserIds.includes(ctxUser.user_id),
+    });
+  } catch (error) {
+    if (error?.code === 'ER_DUP_ENTRY') {
+      return findUserByMaxId(ctxUser.user_id);
+    }
+    throw error;
+  }
 }
 
 export async function updateUser(userId, fields) {

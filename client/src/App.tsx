@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
-import { LoginScreen, RegisterResidentScreen, RegisterUkScreen } from './screens/Auth'
+import { MaxRequiredScreen } from './screens/Auth'
 import { ChatsScreen } from './screens/Chats'
 import { FeedScreen } from './screens/Feed'
-import { PrivateAddressScreen, SelectHouseScreen } from './screens/House'
+import { PrivateAddressScreen, SelectCompanyScreen } from './screens/House'
 import { MyTicketsScreen, ProfileScreen } from './screens/Profile'
 import { AppShell } from './screens/Shell'
 import { BuildingScreen } from './screens/Building'
@@ -23,22 +23,17 @@ function ToastHost() {
   )
 }
 
-function GuestOnly() {
-  const user = useUser()
-  if (user) return <Navigate to="/" replace />
-  return <Outlet />
-}
-
 function NeedAuth() {
   const user = useUser()
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) return <MaxRequiredScreen />
   return <Outlet />
 }
 
 function NeedHouse() {
   const user = useUser()
   const location = useLocation()
-  if (!user?.houseId) return <Navigate to="/select-house" replace />
+  if (!user?.houseId && !user?.companyId) return <Navigate to="/select-uk" replace />
+  if (!user?.houseId) return <Navigate to="/select-uk" replace />
   if (user.role === 'resident' && !user.skippedAddress && !user.street && !user.flat) {
     if (location.pathname !== '/address') return <Navigate to="/address" replace />
   }
@@ -47,8 +42,8 @@ function NeedHouse() {
 
 function HomeRedirect() {
   const user = useUser()
-  if (!user) return <Navigate to="/login" replace />
-  if (!user.houseId) return <Navigate to="/select-house" replace />
+  if (!user) return <MaxRequiredScreen />
+  if (!user.houseId) return <Navigate to="/select-uk" replace />
   if (user.role === 'resident' && !user.skippedAddress && !user.street && !user.flat) {
     return <Navigate to="/address" replace />
   }
@@ -71,7 +66,7 @@ function Bootstrap({ children }: { children: React.ReactNode }) {
   if (!ready) {
     return (
       <div className="auth-page">
-        <div className="muted">Загрузка…</div>
+        <div className="muted">Загрузка профиля MAX…</div>
       </div>
     )
   }
@@ -86,13 +81,9 @@ export default function App() {
         <ToastHost />
         <Routes>
           <Route path="/" element={<HomeRedirect />} />
-          <Route element={<GuestOnly />}>
-            <Route path="/login" element={<LoginScreen />} />
-            <Route path="/register" element={<RegisterResidentScreen />} />
-            <Route path="/register-uk" element={<RegisterUkScreen />} />
-          </Route>
           <Route element={<NeedAuth />}>
-            <Route path="/select-house" element={<SelectHouseScreen />} />
+            <Route path="/select-uk" element={<SelectCompanyScreen />} />
+            <Route path="/select-house" element={<Navigate to="/select-uk" replace />} />
             <Route path="/address" element={<PrivateAddressScreen />} />
             <Route element={<NeedHouse />}>
               <Route path="/app" element={<AppShell />}>

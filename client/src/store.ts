@@ -1,5 +1,13 @@
 import { create } from 'zustand'
-import { clientApi, getToken, setToken, type BootstrapPayload } from './api'
+import {
+  clientApi,
+  getMaxInitData,
+  getMaxPlatform,
+  getToken,
+  setToken,
+  type BootstrapPayload,
+  type Company,
+} from './api'
 import type {
   Chat,
   EntranceWork,
@@ -24,6 +32,7 @@ export interface AppStore {
   token: string | null
   user: User | null
   houses: House[]
+  companies: Company[]
   chats: Chat[]
   messages: Message[]
   topics: Topic[]
@@ -37,10 +46,8 @@ export interface AppStore {
   setToast: (toast: Toast | null) => void
   hydrate: () => Promise<void>
   applyBootstrap: (data: BootstrapPayload, token?: string) => void
-  login: (phone: string) => Promise<string | null>
-  registerResident: (name: string, phone: string, city?: string) => Promise<string | null>
-  registerUk: (ukName: string, name: string, phone: string, city?: string) => Promise<string | null>
   logout: () => Promise<void>
+  selectCompany: (companyId: string) => Promise<void>
   selectHouse: (houseId: string) => Promise<void>
   savePrivateAddress: (street: string, entrance: string, flat: string) => Promise<void>
   skipPrivateAddress: () => Promise<void>
@@ -76,6 +83,7 @@ function applyData(
     token: nextToken,
     user: { ...data.user, password: '' },
     houses: data.houses || [],
+    companies: data.companies || [],
     chats: data.chats || [],
     messages: data.messages || [],
     topics: data.topics || [],
@@ -93,12 +101,23 @@ function apiDownMessage(e: unknown) {
   return msg || 'Ошибка сервера'
 }
 
+async function authViaBridge(): Promise<BootstrapPayload & { token: string }> {
+  const initData = getMaxInitData()
+  if (!initData) {
+    throw new Error('Нет данных MAX Bridge. Откройте мини-приложение внутри MAX.')
+  }
+  window.WebApp?.ready?.()
+  window.WebApp?.expand?.()
+  return clientApi.loginMax(initData, getMaxPlatform())
+}
+
 export const useAppStore = create<AppStore>((set, get) => ({
   ready: false,
   apiError: null,
   token: getToken(),
   user: null,
   houses: [],
+  companies: [],
   chats: [],
   messages: [],
   topics: [],
@@ -116,10 +135,40 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   hydrate: async () => {
     const token = getToken()
+    const initData = getMaxInitData()
+
+    // Всегда предпочитаем свежий Bridge-сеанс, если есть initData
+    if (initData) {
+      try {
+        const data = await authViaBridge()
+        applyData(set, data, data.token)
+        return
+      } catch (e) {
+        // если Bridge не прошёл, пробуем старый токен
+        if (!token) {
+          set({
+            ready: true,
+            user: null,
+            token: null,
+            apiError: apiDownMessage(e),
+          })
+          return
+        }
+      }
+    }
+
     if (!token) {
-      set({ ready: true, user: null, token: null, apiError: null })
+      set({
+        ready: true,
+        user: null,
+        token: null,
+        apiError: initData
+          ? null
+          : 'Откройте мини-приложение в MAX — вход по телефону отключён.',
+      })
       return
     }
+
     try {
       const data = await clientApi.me()
       applyData(set, data)
@@ -130,6 +179,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         user: null,
         token: null,
         houses: [],
+        companies: [],
         chats: [],
         messages: [],
         topics: [],
@@ -138,36 +188,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
         parking: [],
         apiError: apiDownMessage(e),
       })
-    }
-  },
-
-  login: async (phone) => {
-    try {
-      const data = await clientApi.login(phone)
-      applyData(set, data, data.token)
-      return null
-    } catch (e) {
-      return apiDownMessage(e)
-    }
-  },
-
-  registerResident: async (name, phone, city) => {
-    try {
-      const data = await clientApi.register({ name, phone, role: 'resident', city })
-      applyData(set, data, data.token)
-      return null
-    } catch (e) {
-      return apiDownMessage(e)
-    }
-  },
-
-  registerUk: async (ukName, name, phone, city) => {
-    try {
-      const data = await clientApi.register({ name, phone, role: 'uk', ukName, city })
-      applyData(set, data, data.token)
-      return null
-    } catch (e) {
-      return apiDownMessage(e)
     }
   },
 
@@ -182,6 +202,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       token: null,
       user: null,
       houses: [],
+      companies: [],
       chats: [],
       messages: [],
       topics: [],
@@ -190,6 +211,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
       parking: [],
       apiError: null,
     })
+  },
+
+  selectCompany: async (companyId) => {
+    const data = await clientApi.selectCompany(companyId)
+    applyData(set, data)
   },
 
   selectHouse: async (houseId) => {

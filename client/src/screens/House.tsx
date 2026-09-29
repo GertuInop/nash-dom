@@ -4,33 +4,33 @@ import { useNavigate } from 'react-router-dom'
 import { useAppStore, useUser } from '../store'
 import { Field, Header, PrimaryButton, TextInput } from '../ui'
 
-export function SelectHouseScreen() {
+export function SelectCompanyScreen() {
   const user = useUser()
-  const houses = useAppStore((s) => s.houses)
-  const selectHouse = useAppStore((s) => s.selectHouse)
-  const logout = useAppStore((s) => s.logout)
+  const companies = useAppStore((s) => s.companies)
+  const selectCompany = useAppStore((s) => s.selectCompany)
   const [q, setQ] = useState('')
-  const [picked, setPicked] = useState(user?.houseId ?? '')
+  const [picked, setPicked] = useState(user?.companyId ?? '')
   const [busy, setBusy] = useState(false)
   const navigate = useNavigate()
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase()
-    return houses.filter(
-      (h) =>
+    return companies.filter(
+      (c) =>
         !s ||
-        h.address.toLowerCase().includes(s) ||
-        h.city.toLowerCase().includes(s) ||
-        h.uk.toLowerCase().includes(s),
+        c.name.toLowerCase().includes(s) ||
+        c.city.toLowerCase().includes(s) ||
+        c.address.toLowerCase().includes(s),
     )
-  }, [q, houses])
+  }, [q, companies])
 
   const byCity = useMemo(() => {
     const map = new Map<string, typeof list>()
-    for (const h of list) {
-      const arr = map.get(h.city) || []
-      arr.push(h)
-      map.set(h.city, arr)
+    for (const c of list) {
+      const city = c.city || 'Без города'
+      const arr = map.get(city) || []
+      arr.push(c)
+      map.set(city, arr)
     }
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ru'))
   }, [list])
@@ -38,49 +38,34 @@ export function SelectHouseScreen() {
   return (
     <div className="shell-root">
       <div className="shell">
-        <Header
-          title="Выбор дома"
-          sub="Город · улица · УК"
-          back={
-            <button
-              type="button"
-              className="back-btn"
-              onClick={async () => {
-                await logout()
-                navigate('/login')
-              }}
-            >
-              <ChevronLeft size={18} /> Назад
-            </button>
-          }
-        />
+        <Header title="Выбор УК" sub="Только управляющие компании из базы" />
         <div className={`content pad house-pick${picked ? ' has-confirm' : ''}`}>
           <Field label="Поиск">
             <TextInput
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Улица, город или УК"
+              placeholder="Название УК или город"
             />
           </Field>
           <div style={{ marginTop: 14 }}>
             {list.length === 0 ? (
-              <p className="muted">Список домов пуст. Убедитесь, что API и MySQL запущены.</p>
+              <p className="muted">
+                Пока нет одобренных УК. Подключение УК идёт через бота «Наш дом» в MAX.
+              </p>
             ) : null}
             {byCity.map(([city, items]) => (
               <div key={city} className="city-group">
                 <h3 className="city-group-title">{city}</h3>
-                {items.map((house) => (
+                {items.map((company) => (
                   <button
-                    key={house.id}
+                    key={company.id}
                     type="button"
-                    className={picked === house.id ? 'house-item picked' : 'house-item'}
-                    onClick={() => setPicked(house.id)}
+                    className={picked === company.id ? 'house-item picked' : 'house-item'}
+                    onClick={() => setPicked(company.id)}
                   >
-                    <strong>{house.address}</strong>
-                    <div className="muted">{house.uk}</div>
-                    <div className="hint">
-                      {house.entrances} под. · {house.floors} эт.
-                    </div>
+                    <strong>{company.name}</strong>
+                    {company.address ? <div className="muted">{company.address}</div> : null}
+                    {company.phone ? <div className="hint">{company.phone}</div> : null}
                   </button>
                 ))}
               </div>
@@ -93,7 +78,7 @@ export function SelectHouseScreen() {
             onClick={async () => {
               setBusy(true)
               try {
-                await selectHouse(picked)
+                await selectCompany(picked)
                 navigate('/')
               } finally {
                 setBusy(false)
@@ -107,6 +92,9 @@ export function SelectHouseScreen() {
     </div>
   )
 }
+
+/** @deprecated alias — оставлен для совместимости импортов */
+export const SelectHouseScreen = SelectCompanyScreen
 
 export function PrivateAddressScreen() {
   const user = useUser()
@@ -136,7 +124,7 @@ export function PrivateAddressScreen() {
           title="Мой адрес"
           sub="Видно только вам"
           back={
-            <button type="button" className="back-btn" onClick={() => navigate('/select-house')}>
+            <button type="button" className="back-btn" onClick={() => navigate('/select-uk')}>
               <ChevronLeft size={18} /> Назад
             </button>
           }
