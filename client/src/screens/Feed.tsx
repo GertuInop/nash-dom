@@ -2,13 +2,24 @@ import { Building2, Car, Inbox, MessageSquarePlus, Plus, ClipboardList, X } from
 import { type FormEvent, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore, useUser } from '../store'
-import type { TopicCategory } from '../types'
+import type { TicketScope, TopicCategory } from '../types'
 import { TOPIC_CATEGORIES, TICKET_CATEGORIES } from '../types'
-import { categoryLabel, EmptyState, Field, houseTitle, PrimaryButton, TextArea, TextInput } from '../ui'
+import { categoryLabel, DigitInput, EmptyState, Field, houseTitle, PrimaryButton, TextArea, TextInput } from '../ui'
+
+function scopeLabel(scope: TicketScope) {
+  if (scope === 'house') return 'Весь дом'
+  if (scope === 'entrance') return 'Подъезд'
+  if (scope === 'floor') return 'Этаж'
+  return 'Квартира / личное'
+}
 
 function CreateTicketModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const user = useUser()
   const createTicket = useAppStore((s) => s.createTicket)
   const [category, setCategory] = useState<TopicCategory>('accident')
+  const [scope, setScope] = useState<TicketScope>('flat')
+  const [entrance, setEntrance] = useState(user?.entrance ?? '')
+  const [floor, setFloor] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [error, setError] = useState('')
@@ -17,7 +28,22 @@ function CreateTicketModal({ open, onClose }: { open: boolean; onClose: () => vo
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
-    const result = await createTicket({ category, title, description })
+    if (scope === 'entrance' && !entrance.trim()) {
+      setError('Укажите подъезд')
+      return
+    }
+    if (scope === 'floor' && (!entrance.trim() || !floor.trim())) {
+      setError('Укажите подъезд и этаж')
+      return
+    }
+    const result = await createTicket({
+      category,
+      title,
+      description,
+      scope,
+      entrance: scope === 'entrance' || scope === 'floor' ? Number(entrance) : undefined,
+      floor: scope === 'floor' ? Number(floor) : undefined,
+    })
     if (!result.ok) {
       setError(result.error ?? 'Не удалось создать заявку')
       return
@@ -48,6 +74,30 @@ function CreateTicketModal({ open, onClose }: { open: boolean; onClose: () => vo
               <option value="other">Другое</option>
             </select>
           </Field>
+          <Field label="Куда относится обращение">
+            <div className="scope-pick">
+              {(['flat', 'entrance', 'floor', 'house'] as TicketScope[]).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={scope === s ? 'active' : undefined}
+                  onClick={() => setScope(s)}
+                >
+                  {scopeLabel(s)}
+                </button>
+              ))}
+            </div>
+          </Field>
+          {scope === 'entrance' || scope === 'floor' ? (
+            <Field label="Подъезд">
+              <DigitInput value={entrance} onChange={setEntrance} maxLength={2} placeholder="1" />
+            </Field>
+          ) : null}
+          {scope === 'floor' ? (
+            <Field label="Этаж">
+              <DigitInput value={floor} onChange={setFloor} maxLength={2} placeholder="5" />
+            </Field>
+          ) : null}
           <Field label="Заголовок">
             <TextInput value={title} onChange={(e) => setTitle(e.target.value)} required />
           </Field>

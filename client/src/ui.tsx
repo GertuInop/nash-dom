@@ -1,4 +1,10 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
+import type {
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  KeyboardEvent,
+  ReactNode,
+  TextareaHTMLAttributes,
+} from 'react'
 import { NavLink } from 'react-router-dom'
 
 export function Logo({ light = false }: { light?: boolean }) {
@@ -60,6 +66,14 @@ export function isCompletePhone(value: string) {
   return phoneDigits(value).length === 11
 }
 
+function blockNonDigitKey(e: KeyboardEvent<HTMLInputElement>, allowPlus = false) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return
+  const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End']
+  if (allowed.includes(e.key)) return
+  if (allowPlus && e.key === '+') return
+  if (e.key.length === 1 && !/\d/.test(e.key)) e.preventDefault()
+}
+
 export function PhoneInput({
   value,
   onChange,
@@ -77,9 +91,40 @@ export function PhoneInput({
       placeholder={props.placeholder ?? '+7 900 123-45-67'}
       value={formatPhoneMask(value)}
       onChange={(e) => onChange(formatPhoneMask(e.target.value))}
+      onKeyDown={(e) => {
+        blockNonDigitKey(e, true)
+        props.onKeyDown?.(e)
+      }}
       onFocus={(e) => {
         if (!phoneDigits(value)) onChange('+7 ')
         props.onFocus?.(e)
+      }}
+    />
+  )
+}
+
+/** Только цифры (подъезд, квартира, этаж, счётчики). */
+export function DigitInput({
+  value,
+  onChange,
+  maxLength = 6,
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type' | 'inputMode'> & {
+  value: string
+  onChange: (digits: string) => void
+  maxLength?: number
+}) {
+  return (
+    <input
+      {...props}
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      value={value}
+      onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, maxLength))}
+      onKeyDown={(e) => {
+        blockNonDigitKey(e)
+        props.onKeyDown?.(e)
       }}
     />
   )

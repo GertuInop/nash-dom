@@ -116,6 +116,7 @@ export function UkPanelScreen() {
                   onClick={() =>
                     openMaxProfile({
                       maxProfileUrl: r.maxProfileUrl,
+                      maxPublicUrl: r.maxPublicUrl,
                       username: r.username,
                       maxUserId: r.maxUserId,
                     })
@@ -165,6 +166,7 @@ export function UkPanelScreen() {
                 style={{ marginTop: 6 }}
                 onClick={() =>
                   openMaxProfile({
+                    maxPublicUrl: t.authorMaxPublicUrl,
                     maxProfileUrl: t.authorMaxProfileUrl,
                     username: t.authorUsername,
                     maxUserId: t.authorMaxUserId,

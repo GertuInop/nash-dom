@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ChevronLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore, useUser } from '../store'
-import { Field, Logo, PrimaryButton, TextInput } from '../ui'
+import {
+  DigitInput,
+  Field,
+  isCompletePhone,
+  Logo,
+  PhoneInput,
+  PrimaryButton,
+  TextInput,
+} from '../ui'
 
 type ResidentStep = 'phone' | 'city' | 'address' | 'entrance' | 'flat' | 'uk'
 type UkStep = 'name' | 'phone' | 'city' | 'address' | 'entrances' | 'floors' | 'parking'
@@ -14,18 +23,27 @@ function Shell({
   sub,
   step,
   total,
+  onBack,
+  backLabel = 'Назад',
   children,
 }: {
   title: string
   sub?: string
   step?: number
   total?: number
+  onBack?: () => void
+  backLabel?: string
   children: React.ReactNode
 }) {
   return (
     <div className="auth-page">
       <div className="auth-shell">
         <div className="auth-card">
+          {onBack ? (
+            <button type="button" className="back-btn onboard-back" onClick={onBack}>
+              <ChevronLeft size={18} /> {backLabel}
+            </button>
+          ) : null}
           <div className="auth-card-brand">
             <Logo />
           </div>
@@ -47,6 +65,7 @@ export function OnboardingScreen() {
   const user = useUser()
   const companies = useAppStore((s) => s.companies)
   const setRole = useAppStore((s) => s.setRole)
+  const resetRole = useAppStore((s) => s.resetRole)
   const saveResidentOnboarding = useAppStore((s) => s.saveResidentOnboarding)
   const registerUkOnboarding = useAppStore((s) => s.registerUkOnboarding)
   const selectCompany = useAppStore((s) => s.selectCompany)
@@ -100,6 +119,17 @@ export function OnboardingScreen() {
     try {
       await setRole(role)
       setToast({ type: 'success', text: role === 'resident' ? 'Роль: житель' : 'Роль: руководитель УК' })
+    } catch (e) {
+      setToast({ type: 'error', text: e instanceof Error ? e.message : 'Ошибка' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function backToRole() {
+    setBusy(true)
+    try {
+      await resetRole()
     } catch (e) {
       setToast({ type: 'error', text: e instanceof Error ? e.message : 'Ошибка' })
     } finally {
@@ -177,7 +207,14 @@ export function OnboardingScreen() {
 
     if (residentStep === 'uk') {
       return (
-        <Shell title="Выбор УК" sub="Найдите свою управляющую компанию" step={total} total={total}>
+        <Shell
+          title="Выбор УК"
+          sub="Найдите свою управляющую компанию"
+          step={total}
+          total={total}
+          onBack={() => setResidentStep('flat')}
+          backLabel="К анкете"
+        >
           <Field label="Поиск">
             <TextInput
               value={ukQuery}
@@ -211,7 +248,7 @@ export function OnboardingScreen() {
     }
 
     const titles: Record<Exclude<ResidentStep, 'uk'>, { title: string; label: string; placeholder: string }> = {
-      phone: { title: 'Телефон', label: 'Номер телефона', placeholder: '+7…' },
+      phone: { title: 'Телефон', label: 'Номер телефона', placeholder: '+7 900 123-45-67' },
       city: { title: 'Город', label: 'Город', placeholder: 'Например, Казань' },
       address: { title: 'Адрес', label: 'Улица, дом', placeholder: 'ул. Примерная, 1' },
       entrance: { title: 'Подъезд', label: 'Номер подъезда', placeholder: '1' },
@@ -231,29 +268,40 @@ export function OnboardingScreen() {
             : residentStep === 'entrance' ? setEntrance
               : setFlat
 
+    const canNext =
+      residentStep === 'phone'
+        ? isCompletePhone(phone)
+        : Boolean(value.trim())
+
     return (
-      <Shell title={meta.title} sub="Шаг регистрации жителя" step={idx + 1} total={total}>
+      <Shell
+        title={meta.title}
+        sub="Шаг регистрации жителя"
+        step={idx + 1}
+        total={total}
+        onBack={() => {
+          if (idx === 0) void backToRole()
+          else setResidentStep(RESIDENT_STEPS[idx - 1]!)
+        }}
+        backLabel={idx === 0 ? 'К выбору роли' : 'Назад'}
+      >
         <Field label={meta.label}>
-          <TextInput
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder={meta.placeholder}
-            autoFocus
-          />
+          {residentStep === 'phone' ? (
+            <PhoneInput value={phone} onChange={setPhone} placeholder={meta.placeholder} autoFocus />
+          ) : residentStep === 'entrance' || residentStep === 'flat' ? (
+            <DigitInput value={value} onChange={setValue} maxLength={4} placeholder={meta.placeholder} autoFocus />
+          ) : (
+            <TextInput
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={meta.placeholder}
+              autoFocus
+            />
+          )}
         </Field>
         <div className="onboard-nav">
-          {idx > 0 ? (
-            <button
-              type="button"
-              className="btn btn-ghost"
-              disabled={busy}
-              onClick={() => setResidentStep(RESIDENT_STEPS[idx - 1]!)}
-            >
-              Назад
-            </button>
-          ) : <span />}
           <PrimaryButton
-            disabled={busy || !value.trim()}
+            disabled={busy || !canNext}
             onClick={() => {
               if (residentStep === 'flat') void finishResidentProfile()
               else setResidentStep(RESIDENT_STEPS[idx + 1]!)
@@ -268,41 +316,64 @@ export function OnboardingScreen() {
 
   const idx = UK_STEPS.indexOf(ukStep)
   const total = UK_STEPS.length
-  const ukMeta: Record<UkStep, { title: string; label: string; placeholder: string; value: string; set: (v: string) => void }> = {
+  const ukMeta: Record<
+    UkStep,
+    { title: string; label: string; placeholder: string; value: string; set: (v: string) => void; digits?: boolean }
+  > = {
     name: { title: 'Название УК', label: 'Управляющая компания', placeholder: 'УК «…»', value: ukName, set: setUkName },
-    phone: { title: 'Телефон', label: 'Номер руководителя', placeholder: '+7…', value: phone, set: setPhone },
+    phone: { title: 'Телефон', label: 'Номер руководителя', placeholder: '+7 900 123-45-67', value: phone, set: setPhone },
     city: { title: 'Город', label: 'Город', placeholder: 'Например, Казань', value: city, set: setCity },
     address: { title: 'Адрес УК', label: 'Адрес дома / офиса', placeholder: 'ул. …', value: ukAddress, set: setUkAddress },
-    entrances: { title: 'Подъезды', label: 'Количество подъездов', placeholder: '2', value: entrances, set: setEntrances },
-    floors: { title: 'Этажи', label: 'Количество этажей', placeholder: '9', value: floors, set: setFloors },
-    parking: { title: 'Парковка', label: 'Парковочных мест у дома', placeholder: '18', value: parkingSpots, set: setParkingSpots },
+    entrances: {
+      title: 'Подъезды',
+      label: 'Количество подъездов',
+      placeholder: '2',
+      value: entrances,
+      set: setEntrances,
+      digits: true,
+    },
+    floors: { title: 'Этажи', label: 'Количество этажей', placeholder: '9', value: floors, set: setFloors, digits: true },
+    parking: {
+      title: 'Парковка',
+      label: 'Парковочных мест у дома',
+      placeholder: '18',
+      value: parkingSpots,
+      set: setParkingSpots,
+      digits: true,
+    },
   }
   const meta = ukMeta[ukStep]
+  const canNextUk = ukStep === 'phone' ? isCompletePhone(phone) : Boolean(meta.value.trim())
 
   return (
-    <Shell title={meta.title} sub="Регистрация руководителя УК" step={idx + 1} total={total}>
+    <Shell
+      title={meta.title}
+      sub="Регистрация руководителя УК"
+      step={idx + 1}
+      total={total}
+      onBack={() => {
+        if (idx === 0) void backToRole()
+        else setUkStep(UK_STEPS[idx - 1]!)
+      }}
+      backLabel={idx === 0 ? 'К выбору роли' : 'Назад'}
+    >
       <Field label={meta.label}>
-        <TextInput
-          value={meta.value}
-          onChange={(e) => meta.set(e.target.value)}
-          placeholder={meta.placeholder}
-          inputMode={['entrances', 'floors', 'parking', 'phone'].includes(ukStep) ? 'numeric' : undefined}
-          autoFocus
-        />
+        {ukStep === 'phone' ? (
+          <PhoneInput value={phone} onChange={setPhone} placeholder={meta.placeholder} autoFocus />
+        ) : meta.digits ? (
+          <DigitInput value={meta.value} onChange={meta.set} maxLength={3} placeholder={meta.placeholder} autoFocus />
+        ) : (
+          <TextInput
+            value={meta.value}
+            onChange={(e) => meta.set(e.target.value)}
+            placeholder={meta.placeholder}
+            autoFocus
+          />
+        )}
       </Field>
       <div className="onboard-nav">
-        {idx > 0 ? (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            disabled={busy}
-            onClick={() => setUkStep(UK_STEPS[idx - 1]!)}
-          >
-            Назад
-          </button>
-        ) : <span />}
         <PrimaryButton
-          disabled={busy || !meta.value.trim()}
+          disabled={busy || !canNextUk}
           onClick={() => {
             if (ukStep === 'parking') void finishUk()
             else setUkStep(UK_STEPS[idx + 1]!)

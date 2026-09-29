@@ -3,6 +3,14 @@ import { pool, updateUser, upsertCity } from './db.js';
 import { toCitySlug, formatCityDisplay } from './cities.js';
 import { createRequest, getRequestById, updateRequestStatus } from './tickets-db.js';
 
+function maxPublicProfileUrl(maxUserId, username) {
+  const uname = username ? String(username).replace(/^@/, '').trim() : '';
+  if (uname) return `https://max.ru/${encodeURIComponent(uname)}`;
+  const id = maxUserId != null ? String(maxUserId).trim() : '';
+  if (id) return `https://max.ru/id${id}`;
+  return undefined;
+}
+
 function normalizePhone(raw) {
   let d = String(raw || '').replace(/\D/g, '');
   if (d.length === 11 && d.startsWith('8')) d = `7${d.slice(1)}`;
@@ -116,6 +124,17 @@ export async function ensureWebSchema() {
   }
   if (!(await columnExists('requests', 'title'))) {
     await pool.execute('ALTER TABLE requests ADD COLUMN title VARCHAR(255) NULL');
+  }
+  if (!(await columnExists('requests', 'request_scope'))) {
+    await pool.execute(
+      "ALTER TABLE requests ADD COLUMN request_scope ENUM('flat','entrance','floor','house') NOT NULL DEFAULT 'flat'",
+    );
+  }
+  if (!(await columnExists('requests', 'request_entrance'))) {
+    await pool.execute('ALTER TABLE requests ADD COLUMN request_entrance INT NULL');
+  }
+  if (!(await columnExists('requests', 'request_floor'))) {
+    await pool.execute('ALTER TABLE requests ADD COLUMN request_floor INT NULL');
   }
 
   await pool.execute(`
@@ -632,6 +651,14 @@ export async function ensureHouseForCompany(company, opts = {}) {
 
 /** Выбор роли после согласия (мини-приложение). */
 export async function setWebRole(userId, role) {
+  if (role === null || role === 'reset') {
+    await updateUser(userId, {
+      role: null,
+      uk_status: 'none',
+      onboarding_step: 'role',
+    });
+    return findUserById(userId);
+  }
   if (role !== 'resident' && role !== 'uk') {
     throw Object.assign(new Error('Роль: resident или uk'), { status: 400 });
   }
@@ -1117,6 +1144,10 @@ function serializeTicket(r, messages = []) {
     authorMaxUserId: maxUserId ? String(maxUserId) : undefined,
     authorUsername: username || undefined,
     authorMaxProfileUrl: maxUserId ? `max://user/${maxUserId}` : undefined,
+    authorMaxPublicUrl: maxPublicProfileUrl(maxUserId, username),
+    requestScope: r.request_scope || 'flat',
+    requestEntrance: r.request_entrance != null ? Number(r.request_entrance) : undefined,
+    requestFloor: r.request_floor != null ? Number(r.request_floor) : undefined,
     ukComment: r.uk_comment || undefined,
     companyId: r.company_id ? String(r.company_id) : undefined,
     messages: (messages || []).map((m) => ({
@@ -1314,17 +1345,55 @@ export async function addTicketComment(user, ticketId, body) {
   return serializeTicket(await getRequestById(request.id), messages);
 }
 
-export async function createWebTicket(user, { title, description, category }) {
+function scopeAddressSuffix(scope, entrance, floor) {
+  if (scope === 'house') return ' · весь дом';
+  if (scope === 'entrance' && entrance) return ` · подъезд ${entrance}`;
+  if (scope === 'floor' && entrance && floor) return ` · подъезд ${entrance}, ${floor} этаж`;
+  return '';
+}
+
+export async function createWebTicket(user, {
+  title,
+  description,
+  category,
+  scope = 'flat',
+  entrance,
+  floor,
+}) {
   const house = user.house_id ? await getHouse(user.house_id) : null;
   const companyId = user.company_id || house?.company_id || null;
   if (!companyId) {
     throw Object.assign(new Error('Сначала выберите УК'), { status: 400 });
   }
-  const addressText = house
+  const allowedScope = ['flat', 'entrance', 'floor', 'house'];
+  const requestScope = allowedScope.includes(scope) ? scope : 'flat';
+  let reqEntrance = null;
+  let reqFloor = null;
+  if (requestScope === 'entrance') {
+    reqEntrance = Number(entrance || user.entrance) || null;
+    if (!reqEntrance) throw Object.assign(new Error('Укажите подъезд'), { status: 400 });
+  }
+  if (requestScope === 'floor') {
+    reqEntrance = Number(entrance || user.entrance) || null;
+    reqFloor = Number(floor) || null;
+    if (!reqEntrance || !reqFloor) {
+      throw Object.assign(new Error('Укажите подъезд и этаж'), { status: 400 });
+    }
+  }
+  const baseAddress = house
     ? `${house.city}, ${house.address}`
     : user.registration_address || 'Адрес не указан';
+  const addressText = `${baseAddress}${scopeAddressSuffix(requestScope, reqEntrance, reqFloor)}`;
   const mapped = mapWebCategoryToRequest(category);
-  const fullDescription = [title, description].filter(Boolean).join('\n\n');
+  const scopeLine =
+    requestScope === 'flat'
+      ? 'Область: квартира / личное'
+      : requestScope === 'house'
+        ? 'Область: весь дом'
+        : requestScope === 'entrance'
+          ? `Область: подъезд ${reqEntrance}`
+          : `Область: ${reqFloor} этаж, подъезд ${reqEntrance}`;
+  const fullDescription = [scopeLine, title, description].filter(Boolean).join('\n\n');
   const request = await createRequest({
     userId: user.id,
     companyId,
@@ -1334,11 +1403,16 @@ export async function createWebTicket(user, { title, description, category }) {
     description: fullDescription,
   });
   await pool.execute(
-    `UPDATE requests SET house_id = :houseId, web_category = :webCategory, title = :title WHERE id = :id`,
+    `UPDATE requests SET house_id = :houseId, web_category = :webCategory, title = :title,
+      request_scope = :requestScope, request_entrance = :reqEntrance, request_floor = :reqFloor
+     WHERE id = :id`,
     {
       houseId: user.house_id || null,
       webCategory: category || null,
       title: title || null,
+      requestScope,
+      reqEntrance,
+      reqFloor,
       id: request.id,
     },
   );
@@ -1417,6 +1491,119 @@ export async function listWorks(houseId) {
   }));
 }
 
+function mapWorkRow(w) {
+  return {
+    id: w.id,
+    houseId: w.house_id,
+    entrance: w.entrance,
+    floor: w.floor,
+    title: w.title,
+    detail: w.detail,
+    status: w.status,
+  };
+}
+
+function formatWorkScopeLabel(work) {
+  if (Number(work.entrance) === 0) return 'весь дом';
+  if (work.floor == null) return `подъезд ${work.entrance}`;
+  return `${work.floor} этаж, подъезд ${work.entrance}`;
+}
+
+const WORK_STATUS_RU = {
+  todo: 'новое объявление',
+  in_progress: 'в работе',
+  done: 'завершено',
+};
+
+async function listResidentMaxIdsForHouse(houseId) {
+  const house = await getHouse(houseId);
+  const ids = new Set();
+  const [byHouse] = await pool.execute(
+    `SELECT DISTINCT max_user_id FROM users
+     WHERE role = 'resident' AND max_user_id IS NOT NULL AND house_id = :hid`,
+    { hid: houseId },
+  );
+  for (const row of byHouse) {
+    if (row.max_user_id) ids.add(Number(row.max_user_id));
+  }
+  if (house?.company_id) {
+    const [byCompany] = await pool.execute(
+      `SELECT DISTINCT max_user_id FROM users
+       WHERE role = 'resident' AND max_user_id IS NOT NULL AND company_id = :cid`,
+      { cid: house.company_id },
+    );
+    for (const row of byCompany) {
+      if (row.max_user_id) ids.add(Number(row.max_user_id));
+    }
+  }
+  return [...ids];
+}
+
+async function notifyResidentsAboutWork(authorUser, work, eventKind) {
+  try {
+    const { notifyMany } = await import('./notify.js');
+    const maxIds = await listResidentMaxIdsForHouse(work.houseId);
+    const exclude = authorUser?.max_user_id ? Number(authorUser.max_user_id) : null;
+    const scope = formatWorkScopeLabel(work);
+    const uk = authorUser?.uk_name || 'УК';
+    const text =
+      eventKind === 'new'
+        ? `📢 *${uk}* — объявление (${scope})\n*${work.title}*\n${work.detail}`
+        : `📢 *${uk}*: «${work.title}» (${scope}) — ${WORK_STATUS_RU[work.status] || work.status}`;
+    await notifyMany(maxIds.filter((id) => id !== exclude), text);
+  } catch (error) {
+    console.warn('[notifyResidentsAboutWork]', error?.message || error);
+  }
+}
+
+export async function createEntranceWork(user, input) {
+  if (user.role !== 'uk' && user.role !== 'admin') {
+    throw Object.assign(new Error('Только УК'), { status: 403 });
+  }
+  if (!user.house_id) {
+    throw Object.assign(new Error('Дом не привязан'), { status: 400 });
+  }
+  const house = await getHouse(user.house_id);
+  if (!house) throw Object.assign(new Error('Дом не найден'), { status: 404 });
+
+  const title = String(input.title || '').trim();
+  const detail = String(input.detail || '').trim();
+  const scope = String(input.scope || 'floor');
+  if (title.length < 2) throw Object.assign(new Error('Укажите заголовок'), { status: 400 });
+  if (detail.length < 2) throw Object.assign(new Error('Укажите текст объявления'), { status: 400 });
+
+  let entrance = Number(input.entrance);
+  let floor = input.floor != null && input.floor !== '' ? Number(input.floor) : null;
+
+  if (scope === 'house') {
+    entrance = 0;
+    floor = null;
+  } else if (scope === 'entrance') {
+    if (!entrance || entrance < 1 || entrance > (house.entrances || 20)) {
+      throw Object.assign(new Error('Укажите номер подъезда'), { status: 400 });
+    }
+    floor = null;
+  } else {
+    if (!entrance || entrance < 1 || entrance > (house.entrances || 20)) {
+      throw Object.assign(new Error('Укажите подъезд'), { status: 400 });
+    }
+    if (!floor || floor < 1 || floor > (house.floors || 50)) {
+      throw Object.assign(new Error('Укажите этаж'), { status: 400 });
+    }
+  }
+
+  const id = newId('w');
+  await pool.execute(
+    `INSERT INTO entrance_works (id, house_id, entrance, floor, title, detail, status)
+     VALUES (:id, :houseId, :entrance, :floor, :title, :detail, 'todo')`,
+    { id, houseId: user.house_id, entrance, floor, title, detail },
+  );
+  const [rows] = await pool.execute('SELECT * FROM entrance_works WHERE id = :id', { id });
+  const work = mapWorkRow(rows[0]);
+  await notifyResidentsAboutWork(user, work, 'new');
+  return work;
+}
+
 export async function setWorkStatus(user, workId, status) {
   if (user.role !== 'uk' && user.role !== 'admin') {
     throw Object.assign(new Error('Только УК'), { status: 403 });
@@ -1432,15 +1619,9 @@ export async function setWorkStatus(user, workId, status) {
   const [rows] = await pool.execute('SELECT * FROM entrance_works WHERE id = :id', { id: workId });
   const w = rows[0];
   if (!w) throw Object.assign(new Error('Не найдено'), { status: 404 });
-  return {
-    id: w.id,
-    houseId: w.house_id,
-    entrance: w.entrance,
-    floor: w.floor,
-    title: w.title,
-    detail: w.detail,
-    status: w.status,
-  };
+  const work = mapWorkRow(w);
+  await notifyResidentsAboutWork(user, work, 'status');
+  return work;
 }
 
 function serializeParking(row) {
@@ -1565,6 +1746,7 @@ export function serializeCompanyMember(u) {
     username: u.username || undefined,
     maxUserId: u.max_user_id ? String(u.max_user_id) : undefined,
     maxProfileUrl: u.max_user_id ? `max://user/${u.max_user_id}` : undefined,
+    maxPublicUrl: maxPublicProfileUrl(u.max_user_id, u.username),
     city: u.city_slug || '',
     address: u.registration_address || '',
     personalAccount: u.personal_account || '',

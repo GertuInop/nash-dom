@@ -43,8 +43,9 @@ export function broadcastChatMessage({ houseId, message, chats, excludeUserId })
   );
 }
 
-export function broadcastTicket(ticket, { excludeUserId } = {}) {
+export function broadcastTicket(ticket, { excludeUserId, eventType } = {}) {
   if (!ticket) return;
+  const type = eventType === 'created' ? 'ticket.created' : 'ticket.updated';
   broadcast(
     {
       companyId: ticket.companyId,
@@ -52,7 +53,7 @@ export function broadcastTicket(ticket, { excludeUserId } = {}) {
       houseId: ticket.houseId,
       excludeUserId,
     },
-    { type: 'ticket.updated', ticket },
+    { type, ticket },
   );
 }
 

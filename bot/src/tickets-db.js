@@ -244,8 +244,11 @@ export function formatRequestCardHtml(request, messages = []) {
     .filter(Boolean)
     .join(' ') || 'Житель';
   const maxId = request.resident_max_user_id || request.max_user_id;
-  const profile = maxId
-    ? `<a href="max://user/${maxId}">${escapeHtml(residentName)}</a>`
+  const username = request.resident_username || request.username;
+  const uname = username ? String(username).replace(/^@/, '').trim() : '';
+  const profileUrl = uname ? `https://max.ru/${encodeURIComponent(uname)}` : (maxId ? `https://max.ru/id${maxId}` : null);
+  const profile = profileUrl
+    ? `<a href="${escapeHtml(profileUrl)}">${escapeHtml(residentName)}</a>`
     : escapeHtml(residentName);
 
   let html = `${request.type === 'emergency' ? '🚨' : '📝'} <b>${escapeHtml(typeTitle(request.type))} №${escapeHtml(request.public_number)}</b>\n`

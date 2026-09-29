@@ -1,9 +1,13 @@
-import { useMemo, useState } from 'react'
-import { Building2, Car, ChevronLeft, Layers, Wrench } from 'lucide-react'
+import { type FormEvent, useMemo, useState } from 'react'
+import { Building2, Car, ChevronLeft, Layers, Megaphone, Wrench } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore, useUser } from '../store'
-import { houseTitle } from '../ui'
+import { Field, houseTitle, PrimaryButton, TextArea, TextInput } from '../ui'
 import { workLabel, type WorkStatus } from '../types'
+
+function worksForEntrance(all: ReturnType<typeof useAppStore.getState>['works'], entrance: number) {
+  return all.filter((w) => w.entrance === entrance || w.entrance === 0)
+}
 
 function worst(statuses: WorkStatus[]): WorkStatus | 'clear' {
   if (statuses.includes('todo')) return 'todo'
@@ -12,9 +16,12 @@ function worst(statuses: WorkStatus[]): WorkStatus | 'clear' {
   return 'clear'
 }
 
-function toneLabel(st: WorkStatus | 'clear') {
-  if (st === 'clear') return 'Свободно'
-  return workLabel(st)
+function floorTileHint(st: WorkStatus | 'clear', hasItems: boolean) {
+  if (!hasItems) return ''
+  if (st === 'todo') return 'Объявление'
+  if (st === 'in_progress') return 'В работе'
+  if (st === 'done') return 'Готово'
+  return ''
 }
 
 export function BuildingScreen() {
@@ -22,6 +29,8 @@ export function BuildingScreen() {
   const worksAll = useAppStore((s) => s.works)
   const houses = useAppStore((s) => s.houses)
   const setWorkStatus = useAppStore((s) => s.setWorkStatus)
+  const createWork = useAppStore((s) => s.createWork)
+  const setToast = useAppStore((s) => s.setToast)
   const house = houses.find((h) => h.id === user?.houseId)
   const floors = house?.floors || 5
   const entrancesCount = house?.entrances || 2
@@ -29,16 +38,18 @@ export function BuildingScreen() {
   const [picked, setPicked] = useState(1)
   const [pickedFloor, setPickedFloor] = useState<number | null>(null)
   const [floorFilter, setFloorFilter] = useState('')
+  const [floorAnnTitle, setFloorAnnTitle] = useState('')
+  const [floorAnnDetail, setFloorAnnDetail] = useState('')
+  const [floorAnnBusy, setFloorAnnBusy] = useState(false)
   const isUk = user?.role === 'uk'
   const navigate = useNavigate()
 
-  const byEntrance = useMemo(
-    () => works.filter((w) => w.entrance === picked),
-    [works, picked],
-  )
+  const byEntrance = useMemo(() => worksForEntrance(works, picked), [works, picked])
+
+  const houseWorks = useMemo(() => works.filter((w) => w.entrance === 0), [works])
 
   const commonWorks = useMemo(
-    () => byEntrance.filter((w) => w.floor == null),
+    () => byEntrance.filter((w) => w.floor == null && w.entrance !== 0),
     [byEntrance],
   )
 
@@ -126,9 +137,7 @@ export function BuildingScreen() {
 
         <div className="building-silhouette" role="tablist" aria-label="Подъезды">
           {entrances.map((entrance) => {
-            const tone = worst(
-              works.filter((w) => w.entrance === entrance).map((w) => w.status),
-            )
+            const tone = worst(worksForEntrance(works, entrance).map((w) => w.status))
             return (
               <button
                 key={entrance}
@@ -153,11 +162,29 @@ export function BuildingScreen() {
           })}
         </div>
 
+        {houseWorks.length > 0 ? (
+          <div className="passport-block">
+            <div className="passport-section-head">
+              <h3>
+                <Megaphone size={16} /> На весь дом
+              </h3>
+            </div>
+            {houseWorks.map((item) => (
+              <WorkRow
+                key={item.id}
+                item={item}
+                isUk={isUk}
+                onStatus={(s) => setWorkStatus(item.id, s)}
+              />
+            ))}
+          </div>
+        ) : null}
+
         {commonWorks.length > 0 ? (
           <div className="passport-block">
             <div className="passport-section-head">
               <h3>
-                <Wrench size={16} /> Общие работы
+                <Wrench size={16} /> Объявления подъезда
               </h3>
             </div>
             {commonWorks.map((item) => (
@@ -192,15 +219,16 @@ export function BuildingScreen() {
             {filteredFloors.map((floor) => {
               const floorWorks = byEntrance.filter((w) => w.floor === floor)
               const st = worst(floorWorks.map((w) => w.status))
+              const hint = floorTileHint(st, floorWorks.length > 0)
               return (
                 <button
                   key={floor}
                   type="button"
-                  className={`floor-tile tone-${st}${pickedFloor === floor ? ' active' : ''}`}
+                  className={`floor-tile tone-${st}${pickedFloor === floor ? ' active' : ''}${hint ? ' has-note' : ''}`}
                   onClick={() => setPickedFloor(floor)}
                 >
                   <b>{floor}</b>
-                  <span>{toneLabel(st)}</span>
+                  {hint ? <span>{hint}</span> : null}
                 </button>
               )
             })}
@@ -217,18 +245,124 @@ export function BuildingScreen() {
                 Скрыть
               </button>
             </div>
-            {floorDetailWorks.length === 0 ? (
-              <p className="muted">На этом этаже записей нет — можно гулять спокойно.</p>
-            ) : (
-              floorDetailWorks.map((item) => (
-                <WorkRow
-                  key={item.id}
-                  item={item}
-                  isUk={isUk}
-                  onStatus={(s) => setWorkStatus(item.id, s)}
-                />
-              ))
-            )}
+
+            {floorDetailWorks.map((item) => (
+              <WorkRow
+                key={item.id}
+                item={item}
+                isUk={isUk}
+                onStatus={(s) => setWorkStatus(item.id, s)}
+              />
+            ))}
+
+            {isUk ? (
+              <form
+                className="floor-announce-form"
+                onSubmit={async (e: FormEvent) => {
+                  e.preventDefault()
+                  setFloorAnnBusy(true)
+                  try {
+                    await createWork({
+                      title: floorAnnTitle,
+                      detail: floorAnnDetail,
+                      scope: 'floor',
+                      entrance: picked,
+                      floor: pickedFloor,
+                    })
+                    setToast({ type: 'success', text: 'Объявление отправлено жителям' })
+                    setFloorAnnTitle('')
+                    setFloorAnnDetail('')
+                  } catch (err) {
+                    setToast({ type: 'error', text: err instanceof Error ? err.message : 'Ошибка' })
+                  } finally {
+                    setFloorAnnBusy(false)
+                  }
+                }}
+              >
+                <p className="muted" style={{ marginTop: 0 }}>
+                  Объявление для жителей этого этажа (уведомление уйдёт в MAX).
+                </p>
+                <Field label="Заголовок">
+                  <TextInput
+                    value={floorAnnTitle}
+                    onChange={(e) => setFloorAnnTitle(e.target.value)}
+                    placeholder="Например: Отключение воды"
+                    required
+                  />
+                </Field>
+                <Field label="Текст">
+                  <TextArea
+                    value={floorAnnDetail}
+                    onChange={(e) => setFloorAnnDetail(e.target.value)}
+                    placeholder="Когда и что планируется"
+                    required
+                    rows={3}
+                  />
+                </Field>
+                <PrimaryButton type="submit" disabled={floorAnnBusy}>
+                  {floorAnnBusy ? 'Отправка…' : `Опубликовать на ${pickedFloor} этаже`}
+                </PrimaryButton>
+                <div className="floor-announce-alt">
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    disabled={floorAnnBusy}
+                    onClick={async () => {
+                      if (!floorAnnTitle.trim() || !floorAnnDetail.trim()) {
+                        setToast({ type: 'error', text: 'Заполните заголовок и текст' })
+                        return
+                      }
+                      setFloorAnnBusy(true)
+                      try {
+                        await createWork({
+                          title: floorAnnTitle,
+                          detail: floorAnnDetail,
+                          scope: 'entrance',
+                          entrance: picked,
+                        })
+                        setToast({ type: 'success', text: 'Объявление для подъезда отправлено' })
+                        setFloorAnnTitle('')
+                        setFloorAnnDetail('')
+                      } catch (err) {
+                        setToast({ type: 'error', text: err instanceof Error ? err.message : 'Ошибка' })
+                      } finally {
+                        setFloorAnnBusy(false)
+                      }
+                    }}
+                  >
+                    На весь подъезд {picked}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    disabled={floorAnnBusy}
+                    onClick={async () => {
+                      if (!floorAnnTitle.trim() || !floorAnnDetail.trim()) {
+                        setToast({ type: 'error', text: 'Заполните заголовок и текст' })
+                        return
+                      }
+                      setFloorAnnBusy(true)
+                      try {
+                        await createWork({
+                          title: floorAnnTitle,
+                          detail: floorAnnDetail,
+                          scope: 'house',
+                        })
+                        setToast({ type: 'success', text: 'Объявление для дома отправлено' })
+                        setFloorAnnTitle('')
+                        setFloorAnnDetail('')
+                      } catch (err) {
+                        setToast({ type: 'error', text: err instanceof Error ? err.message : 'Ошибка' })
+                      } finally {
+                        setFloorAnnBusy(false)
+                      }
+                    }}
+                  >
+                    На весь дом
+                  </button>
+                </div>
+              </form>
+            ) : null}
           </div>
         ) : null}
       </section>
@@ -246,6 +380,7 @@ function WorkRow({
     title: string
     detail: string
     status: WorkStatus
+    entrance: number
     floor: number | null
   }
   isUk: boolean
@@ -262,7 +397,13 @@ function WorkRow({
         </span>
       </div>
       <p className="muted">{item.detail}</p>
-      <div className="hint">{item.floor ? `${item.floor} этаж` : 'Весь подъезд'}</div>
+      <div className="hint">
+        {item.entrance === 0
+          ? 'Весь дом'
+          : item.floor
+            ? `Подъезд ${item.entrance}, ${item.floor} этаж`
+            : `Подъезд ${item.entrance}`}
+      </div>
       {isUk ? (
         <div className="work-actions">
           {item.status !== 'in_progress' ? (

@@ -6,6 +6,7 @@ import type {
   Message,
   ParkingSpot,
   Ticket,
+  TicketScope,
   TicketStatus,
   Topic,
   TopicCategory,
@@ -119,6 +120,12 @@ export const clientApi = {
       body: JSON.stringify({ role }),
     }),
 
+  resetRole: () =>
+    api<BootstrapPayload>('/server/me/role', {
+      method: 'POST',
+      body: JSON.stringify({ reset: true }),
+    }),
+
   saveResidentOnboarding: (input: {
     phone: string
     city: string
@@ -189,7 +196,26 @@ export const clientApi = {
       body: JSON.stringify(input),
     }),
 
-  createTicket: (input: { title: string; description: string; category: TopicCategory }) =>
+  createWork: (input: {
+    title: string
+    detail: string
+    scope: 'house' | 'entrance' | 'floor'
+    entrance?: number
+    floor?: number
+  }) =>
+    api<{ work: EntranceWork; works: EntranceWork[] }>('/server/works', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  createTicket: (input: {
+    title: string
+    description: string
+    category: TopicCategory
+    scope?: import('./types').TicketScope
+    entrance?: number
+    floor?: number
+  }) =>
     api<{ ticket: Ticket; tickets: Ticket[] }>('/server/tickets', {
       method: 'POST',
       body: JSON.stringify(input),

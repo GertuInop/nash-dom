@@ -1502,6 +1502,28 @@ h1 {
   background: var(--brand-soft);
 }
 
+.floor-tile.has-note b {
+  color: var(--brand-deep);
+}
+
+.floor-announce-form {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.floor-announce-alt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.floor-announce-alt .btn {
+  flex: 1;
+  min-width: 140px;
+}
+
 .floor-tile.tone-todo {
   border-color: #fecdca;
 }
@@ -1807,16 +1829,44 @@ h1 {
   transition: width 0.2s ease;
 }
 
+.onboard-back {
+  margin: 0 0 12px;
+  padding-left: 0;
+}
+
 .onboard-nav {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: stretch;
   gap: 12px;
   margin-top: 8px;
 }
 
 .onboard-nav .btn-primary {
   flex: 1;
+  width: 100%;
+}
+
+.scope-pick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.scope-pick button {
+  padding: 10px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.scope-pick button.active {
+  border-color: var(--brand);
+  background: #eff4ff;
+  font-weight: 600;
 }
 
 .onboard-list {

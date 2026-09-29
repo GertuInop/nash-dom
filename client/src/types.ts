@@ -4,6 +4,8 @@ export type ChatType = 'general' | 'uk' | 'topic'
 
 export type TicketStatus = 'new' | 'in_progress' | 'done' | 'rejected'
 
+export type TicketScope = 'flat' | 'entrance' | 'floor' | 'house'
+
 export type TopicCategory =
   | 'accident'
   | 'cleaning'
@@ -128,6 +130,7 @@ export interface CompanyMember {
   username?: string
   maxUserId?: string
   maxProfileUrl?: string
+  maxPublicUrl?: string
   city?: string
   address?: string
   personalAccount?: string
@@ -149,6 +152,10 @@ export interface Ticket {
   authorMaxUserId?: string
   authorUsername?: string
   authorMaxProfileUrl?: string
+  authorMaxPublicUrl?: string
+  requestScope?: TicketScope
+  requestEntrance?: number
+  requestFloor?: number
   ukComment?: string
   companyId?: string
   messages?: { id: string; role: string; body: string; createdAt: string }[]

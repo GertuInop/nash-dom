@@ -94,6 +94,15 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;');
 }
 
+function maxProfileLinkHtml(name, maxUserId, username) {
+  const safeName = escapeHtml(name);
+  const uname = username ? String(username).replace(/^@/, '').trim() : '';
+  const href = uname
+    ? `https://max.ru/${encodeURIComponent(uname)}`
+    : (maxUserId ? `https://max.ru/id${maxUserId}` : null);
+  return href ? `<a href="${href}">${safeName}</a>` : safeName;
+}
+
 export async function getOrCreateUser(ctx) {
   if (!ctx.user) {
     throw new Error('Не удалось определить пользователя MAX');
@@ -408,10 +417,7 @@ export async function handleUkPick(ctx, companyId) {
   await ctx.answerOnCallback({ notification: 'УК подключена' });
 
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Житель';
-  const safeName = escapeHtml(name);
-  const profileLink = user.max_user_id
-    ? `<a href="max://user/${user.max_user_id}">${safeName}</a>`
-    : safeName;
+  const profileLink = maxProfileLinkHtml(name, user.max_user_id, user.username);
 
   const managers = await listUkManagerMaxIds(company.id);
   for (const maxId of managers) {
@@ -483,10 +489,7 @@ export async function handleUkResidentJoins(ctx) {
 
   for (const item of residents) {
     const name = [item.first_name, item.last_name].filter(Boolean).join(' ') || 'Житель';
-    const safeName = escapeHtml(name);
-    const profileLink = item.max_user_id
-      ? `<a href="max://user/${item.max_user_id}">${safeName}</a>`
-      : safeName;
+    const profileLink = maxProfileLinkHtml(name, item.max_user_id, item.username);
 
     await ctx.reply(
       `👤 ${profileLink}\n`
@@ -854,14 +857,7 @@ export async function handleAdminPendingUk(ctx) {
     const name = [item.first_name, item.last_name].filter(Boolean).join(' ')
       || item.username
       || 'Пользователь';
-    const safeName = name
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-
-    const profileLink = item.max_user_id
-      ? `<a href="max://user/${item.max_user_id}">${safeName}</a>`
-      : safeName;
+    const profileLink = maxProfileLinkHtml(name, item.max_user_id, item.username);
 
     await ctx.reply(
       `📋 <b>Заявка #${item.id}</b>\n\n`

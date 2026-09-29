@@ -18,6 +18,7 @@ import type {
   Message,
   ParkingSpot,
   Ticket,
+  TicketScope,
   TicketStatus,
   Toast,
   Topic,
@@ -65,11 +66,22 @@ export interface AppStore {
     category: TopicCategory
     title: string
     description: string
+    scope?: TicketScope
+    entrance?: number
+    floor?: number
   }) => Promise<{ ok: boolean; error?: string }>
+  createWork: (input: {
+    title: string
+    detail: string
+    scope: 'house' | 'entrance' | 'floor'
+    entrance?: number
+    floor?: number
+  }) => Promise<void>
   setTicketStatus: (id: string, status: TicketStatus) => Promise<void>
   commentTicket: (id: string, text: string) => Promise<string | null>
   acceptConsent: () => Promise<void>
   setRole: (role: 'resident' | 'uk') => Promise<void>
+  resetRole: () => Promise<void>
   saveResidentOnboarding: (input: {
     phone: string
     city: string
@@ -361,6 +373,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
     applyData(set, data)
   },
 
+  resetRole: async () => {
+    const data = await clientApi.resetRole()
+    applyData(set, data)
+  },
+
+  createWork: async (input) => {
+    const { works } = await clientApi.createWork(input)
+    if (works?.length) set({ works })
+  },
+
   saveResidentOnboarding: async (input) => {
     const data = await clientApi.saveResidentOnboarding(input)
     applyData(set, data)
@@ -449,21 +471,39 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (type === 'ticket.updated' || type === 'ticket.created') {
       const ticket = event.ticket as Ticket | undefined
       if (!ticket?.id) return
+      const me = get().user
+      let toast: Toast | null = null
+      if (type === 'ticket.created' && me?.role === 'uk' && String(ticket.authorId) !== String(me.id)) {
+        toast = { type: 'info', text: `Новая заявка: ${ticket.title}` }
+      } else if (type === 'ticket.updated' && me?.role === 'resident' && String(ticket.authorId) === String(me.id)) {
+        toast = { type: 'info', text: `Статус заявки обновлён: ${ticket.title}` }
+      }
       set({
         tickets: [...get().tickets.filter((t) => t.id !== ticket.id), ticket].sort((a, b) =>
           String(b.createdAt).localeCompare(String(a.createdAt), 'ru'),
         ),
+        ...(toast ? { toast } : {}),
       })
       return
     }
 
     if (type === 'parking.updated' && Array.isArray(event.parking)) {
-      set({ parking: event.parking as ParkingSpot[] })
+      set({
+        parking: event.parking as ParkingSpot[],
+        toast: { type: 'info', text: 'Обновилась схема парковки' },
+      })
       return
     }
 
     if (type === 'works.updated' && Array.isArray(event.works)) {
-      set({ works: event.works as EntranceWork[] })
+      const me = get().user
+      set({
+        works: event.works as EntranceWork[],
+        toast:
+          me?.role === 'resident'
+            ? { type: 'info', text: 'Новое объявление от УК по дому' }
+            : get().toast,
+      })
       return
     }
 

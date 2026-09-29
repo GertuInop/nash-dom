@@ -12,6 +12,7 @@ import {
   createSession,
   createTopic,
   createWebTicket,
+  createEntranceWork,
   createWebUser,
   deleteSession,
   digitsPhone,
@@ -387,6 +388,11 @@ function createServerRouter() {
         res.status(400).json({ error: 'Сначала примите соглашение' });
         return;
       }
+      if (req.body?.reset) {
+        const user = await setWebRole(req.user.id, 'reset');
+        res.json(await bootstrapForUser(user));
+        return;
+      }
       const role = String(req.body?.role || '').trim();
       const user = await setWebRole(req.user.id, role);
       res.json(await bootstrapForUser(user));
@@ -606,9 +612,16 @@ function createServerRouter() {
         res.status(400).json({ error: 'Укажите заголовок и описание' });
         return;
       }
-      const ticket = await createWebTicket(req.user, { title, description, category });
+      const ticket = await createWebTicket(req.user, {
+        title,
+        description,
+        category,
+        scope: req.body?.scope,
+        entrance: req.body?.entrance,
+        floor: req.body?.floor,
+      });
       const tickets = await listTicketsForUser(req.user);
-      broadcastTicket(ticket, { excludeUserId: req.user.id });
+      broadcastTicket(ticket, { excludeUserId: req.user.id, eventType: 'created' });
       res.status(201).json({ ticket, tickets });
     }),
   );
@@ -714,6 +727,19 @@ function createServerRouter() {
         return;
       }
       res.json({ works: await listWorks(houseId) });
+    }),
+  );
+
+  api.post(
+    '/works',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const work = await createEntranceWork(req.user, req.body || {});
+      if (req.user.house_id) {
+        const works = await listWorks(req.user.house_id);
+        broadcastWorks({ houseId: req.user.house_id, works, excludeUserId: req.user.id });
+      }
+      res.status(201).json({ work, works: req.user.house_id ? await listWorks(req.user.house_id) : [] });
     }),
   );
 
