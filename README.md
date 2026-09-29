@@ -68,8 +68,7 @@
 
 ```bash
 cp .env.example .env
-cp .env.example bot/.env
-# заполните BOT_TOKEN и ADMIN_USER_IDS в bot/.env
+# заполните BOT_TOKEN, ADMIN_USER_IDS; на VPS — DOMAIN и MINIAPP_URL
 
 # Linux / сервер:
 bash scripts/docker-up.sh
@@ -77,6 +76,8 @@ bash scripts/docker-up.sh
 # Windows (PowerShell):
 powershell -File scripts/docker-up.ps1
 ```
+
+**Важно:** один файл окружения — корневой `.env`. Файлы `bot/.env`, `bot/.env.local` удалите, они больше не нужны и дают конфликт.
 
 Либо вручную по шагам:
 
@@ -93,7 +94,7 @@ docker compose up -d
 
 ## Переменные окружения
 
-Шаблон без секретов: [`.env.example`](.env.example) и [`bot/.env.example`](bot/.env.example).
+Шаблон без секретов: [`.env.example`](.env.example) (единственный). `bot/.env` не используйте.
 
 | Переменная | Описание | По умолчанию |
 |------------|----------|--------------|
@@ -172,7 +173,9 @@ Frontend: `react`, `vite`.
 
 ### В MAX (прод)
 
-1. В `.env`: `DOMAIN`, `MINIAPP_URL=https://<ДОМЕН>/`, `BOT_TOKEN`, `ADMIN_USER_IDS`
+1. В корневом `.env`: `DOMAIN`, `MINIAPP_URL=https://<ДОМЕН>/`, `BOT_TOKEN`, `ADMIN_USER_IDS`, `BOT_MODE=auto`
+2. Удалите `bot/.env` если есть
+3. `bash scripts/docker-up.sh`
 2. DNS и `docker compose up --build -d`
 3. В кабинете MAX: URL мини-приложения = `MINIAPP_URL`
 4. Написать боту `/start` → онбординг → кнопка «Открыть Наш Дом»

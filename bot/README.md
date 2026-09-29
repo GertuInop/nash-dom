@@ -53,7 +53,7 @@
 docker compose up --build -d
 ```
 
-Перед запуском скопируйте `.env.example` в `.env` и укажите `BOT_TOKEN`, `ADMIN_USER_IDS`, а для продакшена — `DOMAIN`, `ACME_EMAIL`, `MINIAPP_URL`.
+Перед запуском скопируйте корневой `../.env.example` в `../.env` и укажите `BOT_TOKEN`, `ADMIN_USER_IDS`, а для продакшена — `DOMAIN`, `ACME_EMAIL`, `MINIAPP_URL`. Файл `bot/.env` не используйте.
 
 ## HTTPS через Caddy
 
@@ -118,7 +118,9 @@ Caddy слушает **80/443** и разводит пути: `/` → `web`, `/s
 Локальный запуск без Docker (нужен свой MySQL):
 
 ```bash
-cp .env.example .env
+cp ../.env.example ../.env
+# правьте только ../.env
+docker compose -f ../compose.yaml up --build -d
 # заполните BOT_TOKEN, ADMIN_USER_IDS, параметры MySQL
 npm ci
 # примените mysql/init.sql к своей БД

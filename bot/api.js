@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import './src/load-env.js';
 import { ensureSchema, pingDb } from './src/db.js';
 import { startApiServer } from './src/api/server.js';
 

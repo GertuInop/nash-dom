@@ -1,3 +1,6 @@
+# Устаревший compose из bot/. Запускайте из КОРНЯ: docker compose up
+# Использует корневой ../.env
+
 services:
   mysql:
     image: mysql:8.4
@@ -14,7 +17,7 @@ services:
       - mysql_data:/var/lib/mysql
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-prootpass"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -24,18 +27,22 @@ services:
     container_name: nash-dom-bot
     restart: unless-stopped
     env_file:
-      - .env
+      - ../.env
     environment:
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: ${MYSQL_USER:-nash_dom}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-nash_dom}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-nash_dom}
+      BOT_TOKEN: ${BOT_TOKEN}
+      ADMIN_USER_IDS: ${ADMIN_USER_IDS:-}
+      CONSENT_URL: ${CONSENT_URL:-}
       API_PORT: ${API_PORT:-3080}
       DOMAIN: ${DOMAIN:-localhost}
       BOT_MODE: ${BOT_MODE:-auto}
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
       MINIAPP_URL: ${MINIAPP_URL:-}
+      MAX_INITDATA_RELAXED: ${MAX_INITDATA_RELAXED:-1}
       NODE_EXTRA_CA_CERTS: /app/certs/russian_trusted_ca_bundle.pem
     expose:
       - "3080"
@@ -67,6 +74,7 @@ services:
       - "443:443/udp"
     environment:
       DOMAIN: ${DOMAIN:-localhost}
+      SITE_ADDRESS: ${SITE_ADDRESS:-http://127.0.0.1, http://localhost}
       ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro

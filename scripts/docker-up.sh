@@ -3,6 +3,16 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+echo "==> Проверка .env..."
+if [[ ! -f .env ]]; then
+  echo "Нет корневого .env. Сделайте: cp .env.example .env && nano .env"
+  exit 1
+fi
+if [[ -f bot/.env ]]; then
+  echo "ВНИМАНИЕ: найден bot/.env — он больше не используется и может путать."
+  echo "Удалите: rm -f bot/.env"
+fi
+
 export COMPOSE_PARALLEL_LIMIT=1
 export DOCKER_BUILDKIT=1
 
@@ -22,3 +32,5 @@ docker compose up -d
 
 echo "==> Готово. Статус:"
 docker compose ps
+echo "==> Логи бота (хвост):"
+docker compose logs bot --tail 40 || true
