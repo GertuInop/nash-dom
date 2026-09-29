@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { MaxRequiredScreen } from './screens/Auth'
+import { AdminPanelScreen } from './screens/Admin'
 import { ChatsScreen } from './screens/Chats'
 import { FeedScreen } from './screens/Feed'
 import { PrivateAddressScreen, SelectCompanyScreen } from './screens/House'
@@ -32,6 +33,7 @@ function NeedAuth() {
 function NeedHouse() {
   const user = useUser()
   const location = useLocation()
+  if (user?.role === 'admin') return <Outlet />
   if (!user?.houseId && !user?.companyId) return <Navigate to="/select-uk" replace />
   if (!user?.houseId) return <Navigate to="/select-uk" replace />
   if (user.role === 'resident' && !user.skippedAddress && !user.street && !user.flat) {
@@ -43,6 +45,7 @@ function NeedHouse() {
 function HomeRedirect() {
   const user = useUser()
   if (!user) return <MaxRequiredScreen />
+  if (user.role === 'admin') return <Navigate to="/app" replace />
   if (!user.houseId) return <Navigate to="/select-uk" replace />
   if (user.role === 'resident' && !user.skippedAddress && !user.street && !user.flat) {
     return <Navigate to="/address" replace />
@@ -52,7 +55,9 @@ function HomeRedirect() {
 
 function HomeScreen() {
   const user = useUser()
-  return user?.role === 'uk' ? <UkPanelScreen /> : <FeedScreen />
+  if (user?.role === 'admin') return <AdminPanelScreen />
+  if (user?.role === 'uk') return <UkPanelScreen />
+  return <FeedScreen />
 }
 
 function Bootstrap({ children }: { children: React.ReactNode }) {
@@ -95,6 +100,7 @@ export default function App() {
                 <Route path="topics" element={<TopicsScreen />} />
                 <Route path="profile" element={<ProfileScreen />} />
                 <Route path="tickets" element={<MyTicketsScreen />} />
+                <Route path="admin" element={<AdminPanelScreen />} />
               </Route>
             </Route>
           </Route>

@@ -31,7 +31,11 @@ export function ProfileScreen() {
         </div>
         <h2 style={{ margin: 0 }}>{user.name}</h2>
         <div style={{ opacity: 0.9, fontSize: 14 }}>
-          {user.role === 'uk' ? user.ukName ?? 'Управляющая компания' : 'Житель'}
+          {user.role === 'admin'
+            ? 'Администратор'
+            : user.role === 'uk'
+              ? user.ukName ?? 'Управляющая компания'
+              : 'Житель'}
         </div>
         <div style={{ opacity: 0.9, fontSize: 13, marginTop: 6 }}>{user.phone}</div>
       </div>

@@ -42,6 +42,19 @@ import {
   validateContactHash,
   validateInitDataDetailed,
 } from '../max-auth.js';
+import {
+  adminDecideUkRequest,
+  blockCompany,
+  getAdminCompany,
+  listAllCompanies,
+  listAllUsers,
+  listPendingUkForAdmin,
+  moveUserToCompany,
+  setUserBlocked,
+  unblockCompany,
+} from '../admin-db.js';
+import { notifyMany, notifyMaxUser } from '../notify.js';
+import { texts } from '../texts.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const docsDir = path.resolve(__dirname, '../../docs');
@@ -74,12 +87,24 @@ async function requireAuth(req, res, next) {
       res.status(401).json({ error: 'Нужна авторизация' });
       return;
     }
+    if (user.is_blocked && user.role !== 'admin') {
+      res.status(403).json({ error: 'Аккаунт заблокирован администратором' });
+      return;
+    }
     req.user = user;
     req.token = token;
     next();
   } catch (error) {
     next(error);
   }
+}
+
+function requireAdmin(req, res, next) {
+  if (req.user?.role !== 'admin') {
+    res.status(403).json({ error: 'Только для администратора' });
+    return;
+  }
+  next();
 }
 
 function asyncHandler(fn) {
@@ -538,6 +563,194 @@ function createServerRouter() {
     asyncHandler(async (req, res) => {
       const work = await setWorkStatus(req.user, req.params.id, req.body?.status);
       res.json({ work });
+    }),
+  );
+
+  // --- Админ ---
+  api.get(
+    '/admin/overview',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (_req, res) => {
+      const [pendingUk, companies, users] = await Promise.all([
+        listPendingUkForAdmin(),
+        listAllCompanies(),
+        listAllUsers(),
+      ]);
+      res.json({
+        pendingUk,
+        companies,
+        users,
+        stats: {
+          pendingUk: pendingUk.length,
+          companies: companies.length,
+          approvedCompanies: companies.filter((c) => c.status === 'approved').length,
+          blockedCompanies: companies.filter((c) => c.status === 'blocked').length,
+          users: users.length,
+          blockedUsers: users.filter((u) => u.blocked).length,
+        },
+      });
+    }),
+  );
+
+  api.get(
+    '/admin/uk-requests',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (_req, res) => {
+      res.json({ items: await listPendingUkForAdmin() });
+    }),
+  );
+
+  api.post(
+    '/admin/uk-requests/:id/:decision',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const decision = req.params.decision;
+      if (decision !== 'approve' && decision !== 'reject') {
+        res.status(400).json({ error: 'decision: approve|reject' });
+        return;
+      }
+      const result = await adminDecideUkRequest(req.params.id, decision, req.user.id);
+      if (result.notifyMaxId) {
+        await notifyMaxUser(
+          result.notifyMaxId,
+          decision === 'approve' ? texts.ukApproved : texts.ukRejected,
+        );
+      }
+      res.json({
+        ok: true,
+        status: result.status,
+        company: result.company,
+        pendingUk: await listPendingUkForAdmin(),
+      });
+    }),
+  );
+
+  api.get(
+    '/admin/companies',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (_req, res) => {
+      res.json({ companies: await listAllCompanies() });
+    }),
+  );
+
+  api.get(
+    '/admin/companies/:id',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const company = await getAdminCompany(req.params.id);
+      if (!company) {
+        res.status(404).json({ error: 'УК не найдена' });
+        return;
+      }
+      res.json({ company });
+    }),
+  );
+
+  api.post(
+    '/admin/companies/:id/block',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const result = await blockCompany(req.params.id, req.user.id);
+      const name = result.companyName || 'УК';
+      await notifyMany(
+        result.residentMaxIds,
+        `⚠️ Управляющая компания «${name}» заблокирована администратором.\nВы отвязаны от этой УК. Выберите другую в настройках или мини-приложении.`,
+      );
+      if (result.managerMaxId) {
+        await notifyMaxUser(
+          result.managerMaxId,
+          `⚠️ Ваша УК «${name}» заблокирована администратором. Жители отвязаны. Обратитесь в поддержку бота «Наш дом».`,
+        );
+      }
+      res.json({
+        ok: true,
+        company: result.company,
+        notifiedResidents: result.residentMaxIds.length,
+      });
+    }),
+  );
+
+  api.post(
+    '/admin/companies/:id/unblock',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const company = await unblockCompany(req.params.id);
+      if (company?.manager?.maxUserId) {
+        await notifyMaxUser(
+          company.manager.maxUserId,
+          `✅ УК «${company.name}» снова активна. Жители могут подключаться заново.`,
+        );
+      }
+      res.json({ ok: true, company });
+    }),
+  );
+
+  api.get(
+    '/admin/users',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      res.json({ users: await listAllUsers({ q: req.query.q }) });
+    }),
+  );
+
+  api.post(
+    '/admin/users/:id/block',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      if (String(req.params.id) === String(req.user.id)) {
+        res.status(400).json({ error: 'Нельзя заблокировать себя' });
+        return;
+      }
+      const user = await setUserBlocked(req.params.id, true);
+      if (user?.maxUserId) {
+        await notifyMaxUser(
+          user.maxUserId,
+          '⚠️ Ваш аккаунт в «Наш дом» заблокирован администратором.',
+        );
+      }
+      res.json({ ok: true, user });
+    }),
+  );
+
+  api.post(
+    '/admin/users/:id/unblock',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const user = await setUserBlocked(req.params.id, false);
+      if (user?.maxUserId) {
+        await notifyMaxUser(
+          user.maxUserId,
+          '✅ Ваш аккаунт в «Наш дом» разблокирован.',
+        );
+      }
+      res.json({ ok: true, user });
+    }),
+  );
+
+  api.post(
+    '/admin/users/:id/move',
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const companyId = req.body?.companyId ?? null;
+      const user = await moveUserToCompany(req.params.id, companyId || null);
+      if (user?.maxUserId) {
+        const msg = companyId
+          ? `Вас перевели в УК «${user.companyName || companyId}».`
+          : 'Вас отвязали от УК администратором.';
+        await notifyMaxUser(user.maxUserId, msg);
+      }
+      res.json({ ok: true, user });
     }),
   );
 

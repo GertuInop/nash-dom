@@ -7,6 +7,7 @@ import { Agent, fetch as undiciFetch } from 'undici';
 import { config } from './config.js';
 import { ensureSchema, pingDb } from './db.js';
 import { startApiServer } from './api/server.js';
+import { setBotApi } from './notify.js';
 import {
   handleAbout,
   handleAdminDecision,
@@ -76,6 +77,8 @@ const bot = new Bot(config.botToken, {
     fetch: maxFetch,
   },
 });
+
+setBotApi(bot.api);
 
 bot.catch((error) => {
   console.error('Bot error:', error);

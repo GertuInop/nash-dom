@@ -188,4 +188,33 @@ export const clientApi = {
       method: 'PATCH',
       body: JSON.stringify({ active }),
     }),
+
+  adminOverview: () =>
+    api<{
+      pendingUk: any[]
+      companies: any[]
+      users: any[]
+      stats: Record<string, number>
+    }>('/server/admin/overview'),
+
+  adminDecideUk: (id: string, decision: 'approve' | 'reject') =>
+    api<{ ok: boolean }>(`/server/admin/uk-requests/${id}/${decision}`, { method: 'POST' }),
+
+  adminBlockCompany: (id: string) =>
+    api<{ ok: boolean }>(`/server/admin/companies/${id}/block`, { method: 'POST' }),
+
+  adminUnblockCompany: (id: string) =>
+    api<{ ok: boolean }>(`/server/admin/companies/${id}/unblock`, { method: 'POST' }),
+
+  adminBlockUser: (id: string) =>
+    api<{ ok: boolean }>(`/server/admin/users/${id}/block`, { method: 'POST' }),
+
+  adminUnblockUser: (id: string) =>
+    api<{ ok: boolean }>(`/server/admin/users/${id}/unblock`, { method: 'POST' }),
+
+  adminMoveUser: (id: string, companyId: string | null) =>
+    api<{ ok: boolean }>(`/server/admin/users/${id}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ companyId }),
+    }),
 }

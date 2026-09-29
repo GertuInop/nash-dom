@@ -89,6 +89,9 @@ export async function ensureSchema() {
 
   const { ensureWebSchema } = await import('./web-db.js');
   await ensureWebSchema();
+
+  const { ensureAdminSchema } = await import('./admin-db.js');
+  await ensureAdminSchema();
 }
 
 async function ensureResidentJoinSchema() {
@@ -296,6 +299,7 @@ export async function updateUser(userId, fields) {
     'flat',
     'skipped_address',
     'uk_name',
+    'is_blocked',
   ];
 
   const entries = Object.entries(fields).filter(([key]) => allowed.includes(key));

@@ -1,4 +1,4 @@
-export type UserRole = 'resident' | 'uk'
+export type UserRole = 'resident' | 'uk' | 'admin'
 
 export type ChatType = 'general' | 'uk' | 'topic'
 
@@ -31,6 +31,9 @@ export interface User {
   flat?: string
   skippedAddress?: boolean
   companyId?: string
+  blocked?: boolean
+  maxUserId?: string
+  username?: string
 }
 
 export interface House {

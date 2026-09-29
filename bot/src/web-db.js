@@ -89,6 +89,7 @@ export async function ensureWebSchema() {
     ['flat', 'VARCHAR(32) NULL'],
     ['skipped_address', 'TINYINT(1) NOT NULL DEFAULT 0'],
     ['uk_name', 'VARCHAR(255) NULL'],
+    ['is_blocked', 'TINYINT(1) NOT NULL DEFAULT 0'],
   ];
   for (const [name, def] of cols) {
     if (!(await columnExists('users', name))) {
@@ -471,7 +472,10 @@ export async function deleteSession(token) {
 
 export function serializeUserFixed(user) {
   if (!user) return null;
-  const role = user.role === 'uk' || (user.role === 'admin' && user.company_id) ? 'uk' : 'resident';
+  let role = 'resident';
+  if (user.role === 'admin') role = 'admin';
+  else if (user.role === 'uk') role = 'uk';
+
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ')
     || user.full_name
     || 'Пользователь';
@@ -485,8 +489,11 @@ export function serializeUserFixed(user) {
     street: user.street || undefined,
     entrance: user.entrance || undefined,
     flat: user.flat || undefined,
-    skippedAddress: Boolean(user.skipped_address) || role === 'uk',
+    skippedAddress: Boolean(user.skipped_address) || role === 'uk' || role === 'admin',
     companyId: user.company_id ? String(user.company_id) : undefined,
+    blocked: Boolean(user.is_blocked),
+    maxUserId: user.max_user_id ? String(user.max_user_id) : undefined,
+    username: user.username || undefined,
   };
 }
 

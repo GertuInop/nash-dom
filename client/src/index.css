@@ -1648,3 +1648,83 @@ h1 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+.admin-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #0b2a6b, #1e4fd6);
+  color: #fff;
+}
+
+.admin-hero .muted {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 16px;
+  overflow-x: auto;
+}
+
+.admin-tab {
+  border: 0;
+  background: #eef2ff;
+  color: #0b2a6b;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font: inherit;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.admin-tab.active {
+  background: #0b2a6b;
+  color: #fff;
+}
+
+.admin-tab-count {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.status-pill.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-pill.status-approved {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-pill.status-blocked,
+.status-pill.status-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.admin-panel .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

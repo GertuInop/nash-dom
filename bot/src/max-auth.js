@@ -219,6 +219,7 @@ export function validateContactHash({ phone, authDate, userId, hash }, botToken 
 }
 
 export async function loginWithMaxUser(maxUser) {
+  const isAdmin = config.adminUserIds.includes(Number(maxUser.id));
   let user = await findUserByMaxId(maxUser.id);
   if (!user) {
     try {
@@ -227,7 +228,7 @@ export async function loginWithMaxUser(maxUser) {
         username: maxUser.username || null,
         firstName: maxUser.first_name || null,
         lastName: maxUser.last_name || null,
-        isAdmin: config.adminUserIds.includes(Number(maxUser.id)),
+        isAdmin,
       });
     } catch (error) {
       if (error?.code === 'ER_DUP_ENTRY') {
@@ -241,6 +242,7 @@ export async function loginWithMaxUser(maxUser) {
       username: maxUser.username || user.username,
       first_name: maxUser.first_name || user.first_name,
       last_name: maxUser.last_name || user.last_name,
+      ...(isAdmin && user.role !== 'admin' ? { role: 'admin', onboarding_step: 'done', consent_accepted: 1 } : {}),
     });
     user = await findUserById(user.id);
   }
@@ -249,11 +251,25 @@ export async function loginWithMaxUser(maxUser) {
     throw Object.assign(new Error('Не удалось создать пользователя MAX'), { status: 500 });
   }
 
-  if (!user.consent_accepted || !user.role) {
+  if (user.is_blocked && user.role !== 'admin') {
+    throw Object.assign(new Error('Аккаунт заблокирован администратором'), { status: 403 });
+  }
+
+  if (isAdmin && user.role !== 'admin') {
+    await updateUser(user.id, {
+      role: 'admin',
+      consent_accepted: 1,
+      consent_accepted_at: new Date(),
+      onboarding_step: 'done',
+    });
+    user = await findUserById(user.id);
+  }
+
+  if (!user.consent_accepted || (!user.role && !isAdmin)) {
     await updateUser(user.id, {
       consent_accepted: 1,
       consent_accepted_at: new Date(),
-      role: user.role || 'resident',
+      role: user.role || (isAdmin ? 'admin' : 'resident'),
       onboarding_step: user.onboarding_step === 'welcome' || !user.onboarding_step ? 'done' : user.onboarding_step,
       uk_status: user.role === 'uk' ? user.uk_status : 'none',
     });
