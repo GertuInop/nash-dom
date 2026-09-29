@@ -21,7 +21,12 @@ Thumbs.db
 tmp/
 temp/
 
+# PDF согласия — в репозитории только bot/docs/consent.pdf
 *.pdf
+!bot/docs/consent.pdf
 Polzovatelskoe_soglashenie_Nash_Dom.pdf
 bot/docs/*.pdf
+!bot/docs/consent.pdf
 
+consent_extract.txt
+*.docx

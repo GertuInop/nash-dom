@@ -61,6 +61,7 @@ import {
   texts,
   ukSearchResultsText,
 } from './texts.js';
+import { config } from './config.js';
 
 function replyOpts(keyboard) {
   return {
@@ -191,7 +192,18 @@ export async function handleConsentDecline(ctx) {
 
 export async function handleConsentRead(ctx) {
   await ctx.answerOnCallback({ notification: 'Соглашение' });
-  return ctx.reply(texts.consentAgreement, {
+  const url = config.consentUrl;
+  const short = [
+    '📜 *Пользовательское соглашение «Наш Дом»*',
+    '',
+    'Используя сервис, вы принимаете условия соглашения и даёте согласие на обработку персональных данных (152-ФЗ).',
+    'Приложение носит справочный характер и не заменяет юрконсультацию.',
+    '',
+    url
+      ? `📄 Полный текст (PDF):\n${url}`
+      : 'Полный текст доступен в мини-приложении на экране согласия.',
+  ].join('\n');
+  return ctx.reply(short, {
     format: 'markdown',
     attachments: [consentKeyboard()],
   });

@@ -10,11 +10,14 @@ function miniappOpenRow() {
 }
 
 export function consentKeyboard() {
-  return inlineKeyboard([
-    [button.callback('📜 Читать соглашение', 'consent:read')],
-    [button.callback('✅ Согласен', 'consent:accept')],
-    [button.callback('❌ Не согласен', 'consent:decline')],
-  ]);
+  const rows = [];
+  if (config.consentUrl) {
+    rows.push([button.link('📄 Открыть PDF соглашения', config.consentUrl)]);
+  }
+  rows.push([button.callback('📜 Кратко о соглашении', 'consent:read')]);
+  rows.push([button.callback('✅ Согласен', 'consent:accept')]);
+  rows.push([button.callback('❌ Не согласен', 'consent:decline')]);
+  return inlineKeyboard(rows);
 }
 
 export function roleKeyboard() {
@@ -147,10 +150,13 @@ export function residentJoinKeyboard(requestId) {
 }
 
 export function aboutKeyboard() {
-  return inlineKeyboard([
-    [button.callback('📜 Пользовательское соглашение', 'consent:read')],
-    [button.callback('🏠 На главную', 'nav:home')],
-  ]);
+  const rows = [];
+  if (config.consentUrl) {
+    rows.push([button.link('📄 Пользовательское соглашение (PDF)', config.consentUrl)]);
+  }
+  rows.push([button.callback('📜 Текст соглашения', 'consent:read')]);
+  rows.push([button.callback('🏠 На главную', 'nav:home')]);
+  return inlineKeyboard(rows);
 }
 
 export function cityConfirmKeyboard() {

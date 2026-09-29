@@ -142,6 +142,21 @@ function createServerRouter() {
     res.json({ text: CONSENT_AGREEMENT_TEXT });
   });
 
+  api.get('/consent.pdf', (_req, res) => {
+    const file = path.join(docsDir, 'consent.pdf');
+    if (!fs.existsSync(file)) {
+      res.status(404).json({ error: 'consent.pdf не найден' });
+      return;
+    }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="Polzovatelskoe_soglashenie_Nash_Dom.pdf"');
+    fs.createReadStream(file).pipe(res);
+  });
+
+  api.get('/consent-url', (_req, res) => {
+    res.json({ url: config.consentUrl || null, inline: true });
+  });
+
   api.get('/status', (_req, res) => {
     res.json({
       ok: true,
@@ -345,13 +360,6 @@ function createServerRouter() {
     asyncHandler(async (req, res) => {
       res.json(await bootstrapForUser(req.user));
     }),
-  );
-
-  api.get(
-    '/consent-url',
-    (_req, res) => {
-      res.json({ url: null, inline: true });
-    },
   );
 
   api.post(

@@ -33,12 +33,15 @@ function cleanToken(value) {
 }
 
 function defaultConsentUrl() {
-  // Внешний URL опционален. Соглашение показывается текстом в боте/мини-приложении.
   const raw = (process.env.CONSENT_URL || '').trim();
-  if (!raw || /example\.com/i.test(raw) || /\/server\/consent\.pdf/i.test(raw)) {
-    return '';
+  if (raw && !/example\.com/i.test(raw)) {
+    return raw;
   }
-  return raw;
+  // По умолчанию PDF с нашего API
+  if (domain && domain !== 'localhost' && !domain.startsWith('127.')) {
+    return `https://${domain}/server/consent.pdf`;
+  }
+  return 'http://127.0.0.1:3080/server/consent.pdf';
 }
 
 export const config = {
