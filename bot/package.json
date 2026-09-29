@@ -7,7 +7,9 @@
     "start": "node bot.js",
     "api": "node api.js",
     "dev": "nodemon bot.js",
-    "dev:api": "nodemon api.js"
+    "dev:api": "nodemon api.js",
+    "seed": "node scripts/reset-and-seed.js",
+    "reset-db": "node scripts/reset-and-seed.js"
   },
   "keywords": [],
   "author": "",

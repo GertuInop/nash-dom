@@ -49,6 +49,9 @@ services:
       MINIAPP_URL: ${MINIAPP_URL:-}
       MAX_INITDATA_RELAXED: ${MAX_INITDATA_RELAXED:-1}
       NODE_EXTRA_CA_CERTS: /app/certs/russian_trusted_ca_bundle.pem
+      TEST_DATA_PATH: /app/test-data.json
+    volumes:
+      - ./test-data.json:/app/test-data.json:ro
     expose:
       - "3080"
     ports:

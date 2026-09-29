@@ -15,6 +15,7 @@ COPY bot.js api.js ./
 COPY src ./src
 COPY certs ./certs
 COPY docs ./docs
+COPY scripts ./scripts
 
 ENV NODE_ENV=production
 ENV NODE_EXTRA_CA_CERTS=/app/certs/russian_trusted_ca_bundle.pem

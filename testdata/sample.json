@@ -1,27 +1,28 @@
 {
-  "houses_example": [
+  "description": "Примеры запросов к API после загрузки test-data.json",
+  "baseUrl": "https://hackatonmax342.ru/server",
+  "examples": [
     {
-      "city": "Набережные Челны",
-      "address": "пр. Мира, 1",
-      "uk_name": "УК Демо"
+      "name": "status",
+      "method": "GET",
+      "path": "/status",
+      "expectedStatus": 200
+    },
+    {
+      "name": "login_resident",
+      "method": "POST",
+      "path": "/auth/login",
+      "body": { "phone": "+79001234567", "password": "1234" },
+      "expectedStatus": 200,
+      "expectedFields": ["token", "user"]
+    },
+    {
+      "name": "login_uk",
+      "method": "POST",
+      "path": "/auth/login",
+      "body": { "phone": "+79001234561", "password": "1234" },
+      "expectedStatus": 200,
+      "expectedFields": ["token", "user"]
     }
-  ],
-  "login_resident_request": {
-    "phone": "+79001234567",
-    "password": "1234"
-  },
-  "login_uk_request": {
-    "phone": "+79001234561",
-    "password": "1234"
-  },
-  "expected_status_response": {
-    "ok": true,
-    "service": "nash-dom-api",
-    "status": "up"
-  },
-  "topic_create_example": {
-    "category": "neighbors",
-    "title": "Субботник",
-    "description": "Собираемся в субботу у подъезда"
-  }
+  ]
 }

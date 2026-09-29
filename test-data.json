@@ -1,0 +1,95 @@
+{
+  "version": "1.0",
+  "description": "Тестовые данные «Наш дом» для воспроизводимой проверки API и мини-приложения. Загрузка: npm run seed — из каталога bot, или docker compose exec bot node scripts/reset-and-seed.js",
+  "accounts": [
+    {
+      "id": "resident-demo",
+      "role": "resident",
+      "phone": "+79001234567",
+      "password": "1234",
+      "firstName": "Иван",
+      "lastName": "Жителев",
+      "city": "Казань",
+      "street": "ул. Баумана, 10",
+      "entrance": "1",
+      "flat": "42",
+      "description": "Житель дома УК «ДомСервис». Логин веб: телефон + пароль."
+    },
+    {
+      "id": "uk-demo",
+      "role": "uk",
+      "phone": "+79001234561",
+      "password": "1234",
+      "firstName": "Ольга",
+      "lastName": "Управляющая",
+      "city": "Казань",
+      "ukName": "УК «ДомСервис»",
+      "ukAddress": "ул. Баумана, 10",
+      "ukPhone": "+79001234561",
+      "ukEmail": "uk@domservice.test",
+      "description": "Руководитель УК. Логин веб: телефон + пароль."
+    }
+  ],
+  "cities": [
+    { "slug": "казань", "displayName": "Казань" },
+    { "slug": "калининград", "displayName": "Калининград" },
+    { "slug": "москва", "displayName": "Москва" }
+  ],
+  "company": {
+    "name": "УК «ДомСервис»",
+    "city": "Казань",
+    "phone": "+79001234561",
+    "email": "uk@domservice.test",
+    "address": "ул. Баумана, 10",
+    "status": "approved"
+  },
+  "house": {
+    "id": "h-test-baumana",
+    "city": "Казань",
+    "address": "ул. Баумана, 10",
+    "uk": "УК «ДомСервис»",
+    "floors": 9,
+    "entrances": 2
+  },
+  "parkingSpots": 12,
+  "works": [
+    {
+      "id": "w-test-e1-f3",
+      "entrance": 1,
+      "floor": 3,
+      "title": "Промывка стояка ХВС",
+      "detail": "Плановые работы 10:00–14:00. Возможны кратковременные отключения.",
+      "status": "todo"
+    },
+    {
+      "id": "w-test-e1-common",
+      "entrance": 1,
+      "floor": null,
+      "title": "Уборка подъезда",
+      "detail": "Генеральная уборка лестничных клеток.",
+      "status": "in_progress"
+    },
+    {
+      "id": "w-test-house",
+      "entrance": 0,
+      "floor": null,
+      "title": "Отключение ГВС (весь дом)",
+      "detail": "По графику ресурсоснабжающей организации.",
+      "status": "todo"
+    }
+  ],
+  "ticket": {
+    "title": "Течь в подъезде",
+    "description": "На 2 этаже подъезд 1 течёт с потолка у лифта.",
+    "category": "accident",
+    "scope": "entrance",
+    "entrance": 1,
+    "status": "new"
+  },
+  "notes": [
+    "Админ бота MAX задаётся через ADMIN_USER_IDS (max_user_id), не через веб-логин.",
+    "Основной вход в мини-приложении — MAX Bridge (POST /server/auth/max).",
+    "Веб-логин по телефону (POST /server/auth/login) — для проверки API без MAX.",
+    "После seed используйте Authorization: Bearer <token>."
+  ]
+}
