@@ -33,16 +33,12 @@ function cleanToken(value) {
 }
 
 function defaultConsentUrl() {
-  if (process.env.CONSENT_URL) return process.env.CONSENT_URL.trim();
-  if (miniappUrl) {
-    try {
-      return new URL('/server/consent.pdf', miniappUrl).href;
-    } catch {
-      /* fallthrough */
-    }
+  // Внешний URL опционален. Соглашение показывается текстом в боте/мини-приложении.
+  const raw = (process.env.CONSENT_URL || '').trim();
+  if (!raw || /example\.com/i.test(raw) || /\/server\/consent\.pdf/i.test(raw)) {
+    return '';
   }
-  if (domain && domain !== 'localhost') return `https://${domain}/server/consent.pdf`;
-  return 'http://127.0.0.1/server/consent.pdf';
+  return raw;
 }
 
 export const config = {

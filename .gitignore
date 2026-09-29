@@ -20,3 +20,8 @@ Thumbs.db
 # local temp
 tmp/
 temp/
+
+*.pdf
+Polzovatelskoe_soglashenie_Nash_Dom.pdf
+bot/docs/*.pdf
+

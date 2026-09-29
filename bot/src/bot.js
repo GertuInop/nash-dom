@@ -17,6 +17,7 @@ import {
   handleCityRetry,
   handleConsentAccept,
   handleConsentDecline,
+  handleConsentRead,
   handleMyUk,
   handleNavHome,
   handleResidentJoinCancel,
@@ -106,6 +107,7 @@ bot.command('menu', async (ctx) => {
 
 bot.action('consent:accept', handleConsentAccept);
 bot.action('consent:decline', handleConsentDecline);
+bot.action('consent:read', handleConsentRead);
 bot.action('role:resident', handleRoleResident);
 bot.action('role:uk', handleRoleUk);
 bot.action('city:confirm', handleCityConfirm);

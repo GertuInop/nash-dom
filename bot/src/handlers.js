@@ -188,6 +188,14 @@ export async function handleConsentDecline(ctx) {
   return ctx.reply(texts.consentDeclined);
 }
 
+export async function handleConsentRead(ctx) {
+  await ctx.answerOnCallback({ notification: 'Соглашение' });
+  return ctx.reply(texts.consentAgreement, {
+    format: 'markdown',
+    attachments: [consentKeyboard()],
+  });
+}
+
 export async function handleRoleResident(ctx) {
   const user = await getOrCreateUser(ctx);
   await setRoleResident(user.id);

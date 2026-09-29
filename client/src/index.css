@@ -1728,3 +1728,16 @@ h1 {
   align-items: center;
   gap: 6px;
 }
+
+.consent-scroll {
+  max-height: 42vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #334155;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 12px;
+  margin: 0 0 14px;
+}

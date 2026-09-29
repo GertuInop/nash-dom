@@ -60,6 +60,7 @@ import { notifyMany, notifyMaxUser } from '../notify.js';
 import { texts } from '../texts.js';
 import { updateUser } from '../db.js';
 import { ukMenuKeyboard } from '../keyboards.js';
+import { CONSENT_AGREEMENT_TEXT } from '../consent-text.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const docsDir = path.resolve(__dirname, '../../docs');
@@ -126,15 +127,8 @@ function createServerRouter() {
     res.json({ ok: true, service: 'nash-dom-api' });
   });
 
-  api.get('/consent.pdf', (_req, res) => {
-    const file = path.join(docsDir, 'consent.pdf');
-    if (!fs.existsSync(file)) {
-      res.status(404).json({ error: 'Файл соглашения не найден' });
-      return;
-    }
-    res.type('application/pdf');
-    res.setHeader('Content-Disposition', 'inline; filename="Polzovatelskoe_soglashenie_Nash_Dom.pdf"');
-    res.sendFile(file);
+  api.get('/consent-text', (_req, res) => {
+    res.json({ text: CONSENT_AGREEMENT_TEXT });
   });
 
   api.get('/status', (_req, res) => {
@@ -345,7 +339,7 @@ function createServerRouter() {
   api.get(
     '/consent-url',
     (_req, res) => {
-      res.json({ url: config.consentUrl });
+      res.json({ url: null, inline: true });
     },
   );
 

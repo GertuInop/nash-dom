@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { configConsentUrl } from '../api'
+import { useEffect, useState } from 'react'
 import { useAppStore } from '../store'
 import { Logo, PrimaryButton } from '../ui'
 
@@ -38,12 +37,19 @@ export function MaxRequiredScreen() {
   )
 }
 
-/** Согласие с пользовательским соглашением (если ещё не приняли в боте) */
+/** Согласие — текст внутри приложения, без внешнего PDF/URL */
 export function ConsentScreen() {
   const acceptConsent = useAppStore((s) => s.acceptConsent)
   const setToast = useAppStore((s) => s.setToast)
   const [busy, setBusy] = useState(false)
-  const consentUrl = configConsentUrl()
+  const [text, setText] = useState('Загрузка соглашения…')
+
+  useEffect(() => {
+    void fetch('/server/consent-text')
+      .then((r) => r.json())
+      .then((d) => setText(String(d.text || '')))
+      .catch(() => setText('Не удалось загрузить текст соглашения. Нажмите «Согласен», если принимаете условия сервиса «Наш дом».'))
+  }, [])
 
   return (
     <div className="auth-page">
@@ -61,18 +67,7 @@ export function ConsentScreen() {
             <Logo />
           </div>
           <h1>Согласие</h1>
-          <p className="muted">
-            Ознакомьтесь с пользовательским соглашением и подтвердите согласие на обработку данных.
-          </p>
-          <a
-            className="btn btn-ghost"
-            href={consentUrl}
-            target="_blank"
-            rel="noreferrer"
-            style={{ width: '100%', marginBottom: 12, display: 'inline-flex', justifyContent: 'center' }}
-          >
-            Открыть соглашение (PDF)
-          </a>
+          <div className="consent-scroll">{text}</div>
           <PrimaryButton
             disabled={busy}
             onClick={async () => {

@@ -97,10 +97,6 @@ export function getMaxUnsafeUser(): Record<string, unknown> | null {
   return null
 }
 
-export function configConsentUrl() {
-  return '/server/consent.pdf'
-}
-
 export const clientApi = {
   loginMax: (initData: string, platform?: string | null, user?: Record<string, unknown> | null) =>
     api<BootstrapPayload & { token: string }>('/server/auth/max', {

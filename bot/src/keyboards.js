@@ -11,7 +11,7 @@ function miniappOpenRow() {
 
 export function consentKeyboard() {
   return inlineKeyboard([
-    [button.link('📄 Пользовательское соглашение', config.consentUrl)],
+    [button.callback('📜 Читать соглашение', 'consent:read')],
     [button.callback('✅ Согласен', 'consent:accept')],
     [button.callback('❌ Не согласен', 'consent:decline')],
   ]);
@@ -148,8 +148,7 @@ export function residentJoinKeyboard(requestId) {
 
 export function aboutKeyboard() {
   return inlineKeyboard([
-    [button.link('📜 Пользовательское соглашение', config.consentUrl)],
-    [button.link('🔒 Политика конфиденциальности', config.consentUrl)],
+    [button.callback('📜 Пользовательское соглашение', 'consent:read')],
     [button.callback('🏠 На главную', 'nav:home')],
   ]);
 }
