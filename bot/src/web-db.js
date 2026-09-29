@@ -494,6 +494,7 @@ export function serializeUserFixed(user) {
     blocked: Boolean(user.is_blocked),
     maxUserId: user.max_user_id ? String(user.max_user_id) : undefined,
     username: user.username || undefined,
+    consentAccepted: Boolean(user.consent_accepted),
   };
 }
 
@@ -844,33 +845,7 @@ function mapWebCategoryToRequest(category) {
   return { type: 'regular', category: 'other' };
 }
 
-export async function createWebTicket(user, { title, description, category }) {
-  const house = user.house_id ? await getHouse(user.house_id) : null;
-  const addressText = house
-    ? `${house.city}, ${house.address}`
-    : user.registration_address || 'Адрес не указан';
-  const mapped = mapWebCategoryToRequest(category);
-  const request = await createRequest({
-    userId: user.id,
-    companyId: user.company_id || house?.company_id || null,
-    type: mapped.type,
-    category: mapped.category,
-    addressText,
-    description,
-  });
-  await pool.execute(
-    `UPDATE requests SET house_id = :houseId, web_category = :webCategory, title = :title WHERE id = :id`,
-    {
-      houseId: user.house_id || null,
-      webCategory: category,
-      title: title || null,
-      id: request.id,
-    },
-  );
-  return serializeTicket(await getRequestById(request.id));
-}
-
-function serializeTicket(r) {
+function serializeTicket(r, messages = []) {
   const status = r.status === 'rejected' ? 'done' : r.status;
   return {
     id: String(r.id),
@@ -888,18 +863,159 @@ function serializeTicket(r) {
     author: [r.resident_first_name || r.first_name, r.resident_last_name || r.last_name]
       .filter(Boolean)
       .join(' ') || 'Житель',
+    ukComment: r.uk_comment || undefined,
+    companyId: r.company_id ? String(r.company_id) : undefined,
+    messages: (messages || []).map((m) => ({
+      id: String(m.id),
+      role: m.author_role,
+      body: m.body,
+      createdAt: m.created_at
+        ? new Date(m.created_at).toLocaleString('ru-RU')
+        : '',
+    })),
   };
 }
 
 export async function listTicketsForUser(user) {
-  let rows;
-  if (user.role === 'uk' || user.role === 'admin') {
-    if (!user.company_id) return [];
-    rows = await listCompanyRequests(user.company_id, 50);
+  let rows = [];
+  if (user.role === 'admin') {
+    const [all] = await pool.execute(
+      `SELECT r.*,
+              u.first_name, u.last_name, u.phone, u.max_user_id,
+              u.first_name AS resident_first_name,
+              u.last_name AS resident_last_name
+       FROM requests r
+       JOIN users u ON u.id = r.user_id
+       ORDER BY r.created_at DESC
+       LIMIT 80`,
+    );
+    rows = all;
+  } else if (user.role === 'uk') {
+    let companyId = user.company_id;
+    if (!companyId && user.house_id) {
+      const house = await getHouse(user.house_id);
+      companyId = house?.company_id || null;
+    }
+    if (!companyId) return [];
+    rows = await listCompanyRequests(companyId, 50);
   } else {
     rows = await listResidentRequests(user.id, 50);
   }
   return rows.map((r) => serializeTicket(r));
+}
+
+export async function getTicketForUser(user, ticketId) {
+  const request = await getRequestById(Number(ticketId));
+  if (!request) throw Object.assign(new Error('Заявка не найдена'), { status: 404 });
+
+  const allowed =
+    user.role === 'admin'
+    || (user.role === 'uk' && Number(request.company_id) === Number(user.company_id))
+    || (user.role !== 'uk' && user.role !== 'admin' && Number(request.user_id) === Number(user.id));
+
+  if (!allowed) throw Object.assign(new Error('Нет доступа'), { status: 403 });
+
+  const { listRequestMessages } = await import('./tickets-db.js');
+  const messages = await listRequestMessages(request.id);
+  return serializeTicket(request, messages);
+}
+
+export async function addTicketComment(user, ticketId, body) {
+  const text = String(body || '').trim();
+  if (!text) throw Object.assign(new Error('Пустой комментарий'), { status: 400 });
+  if (text.length > 2000) throw Object.assign(new Error('Слишком длинный комментарий'), { status: 400 });
+
+  const request = await getRequestById(Number(ticketId));
+  if (!request) throw Object.assign(new Error('Заявка не найдена'), { status: 404 });
+
+  const isUk = user.role === 'uk' || user.role === 'admin';
+  const isOwner = Number(request.user_id) === Number(user.id);
+  if (isUk && user.role === 'uk' && Number(request.company_id) !== Number(user.company_id)) {
+    throw Object.assign(new Error('Нет доступа'), { status: 403 });
+  }
+  if (!isUk && !isOwner) {
+    throw Object.assign(new Error('Нет доступа'), { status: 403 });
+  }
+
+  const { addRequestMessage, listRequestMessages } = await import('./tickets-db.js');
+  await addRequestMessage({
+    requestId: request.id,
+    authorUserId: user.id,
+    authorRole: isUk ? 'uk' : 'resident',
+    body: text,
+  });
+
+  // Уведомить вторую сторону
+  try {
+    const { notifyMaxUser } = await import('./notify.js');
+    if (isUk && request.resident_max_user_id) {
+      await notifyMaxUser(
+        request.resident_max_user_id,
+        `💬 Комментарий УК по заявке №${request.public_number}:\n${text}`,
+      );
+    }
+    if (!isUk && request.company_id) {
+      const { listUkManagerMaxIds } = await import('./db.js');
+      const managers = await listUkManagerMaxIds(request.company_id);
+      for (const maxId of managers) {
+        await notifyMaxUser(maxId, `💬 Ответ жителя по заявке №${request.public_number}:\n${text}`);
+      }
+    }
+  } catch (error) {
+    console.warn('[ticket comment notify]', error?.message || error);
+  }
+
+  const messages = await listRequestMessages(request.id);
+  return serializeTicket(await getRequestById(request.id), messages);
+}
+
+export async function createWebTicket(user, { title, description, category }) {
+  const house = user.house_id ? await getHouse(user.house_id) : null;
+  const companyId = user.company_id || house?.company_id || null;
+  if (!companyId) {
+    throw Object.assign(new Error('Сначала выберите УК'), { status: 400 });
+  }
+  const addressText = house
+    ? `${house.city}, ${house.address}`
+    : user.registration_address || 'Адрес не указан';
+  const mapped = mapWebCategoryToRequest(category);
+  const fullDescription = [title, description].filter(Boolean).join('\n\n');
+  const request = await createRequest({
+    userId: user.id,
+    companyId,
+    type: mapped.type,
+    category: mapped.category,
+    addressText,
+    description: fullDescription,
+  });
+  await pool.execute(
+    `UPDATE requests SET house_id = :houseId, web_category = :webCategory, title = :title WHERE id = :id`,
+    {
+      houseId: user.house_id || null,
+      webCategory: category || null,
+      title: title || null,
+      id: request.id,
+    },
+  );
+
+  // Уведомить УК как в боте
+  try {
+    const { listUkManagerMaxIds } = await import('./db.js');
+    const { formatRequestCardHtml } = await import('./tickets-db.js');
+    const { notifyMaxUser } = await import('./notify.js');
+    const full = await getRequestById(request.id);
+    const managers = await listUkManagerMaxIds(companyId);
+    const cardHtml = formatRequestCardHtml(full);
+    for (const maxId of managers) {
+      await notifyMaxUser(maxId, `📥 Новая заявка из мини-приложения\n\n${cardHtml}`, {
+        format: 'html',
+      });
+    }
+  } catch (error) {
+    console.warn('[createWebTicket notify]', error?.message || error);
+  }
+
+  return serializeTicket(await getRequestById(request.id));
 }
 
 export async function setTicketStatus(user, ticketId, status) {
@@ -907,7 +1023,10 @@ export async function setTicketStatus(user, ticketId, status) {
     throw Object.assign(new Error('Только УК'), { status: 403 });
   }
   const request = await getRequestById(Number(ticketId));
-  if (!request || request.company_id !== user.company_id) {
+  if (!request) {
+    throw Object.assign(new Error('Заявка не найдена'), { status: 404 });
+  }
+  if (user.role === 'uk' && Number(request.company_id) !== Number(user.company_id)) {
     throw Object.assign(new Error('Заявка не найдена'), { status: 404 });
   }
   const allowed = ['new', 'in_progress', 'done', 'rejected'];
@@ -915,6 +1034,25 @@ export async function setTicketStatus(user, ticketId, status) {
     throw Object.assign(new Error('Неверный статус'), { status: 400 });
   }
   const updated = await updateRequestStatus(request.id, status);
+
+  try {
+    const { notifyMaxUser } = await import('./notify.js');
+    if (updated.resident_max_user_id) {
+      const labels = {
+        new: 'новая',
+        in_progress: 'в работе',
+        done: 'выполнена',
+        rejected: 'отклонена',
+      };
+      await notifyMaxUser(
+        updated.resident_max_user_id,
+        `Статус заявки №${updated.public_number}: *${labels[status] || status}*`,
+      );
+    }
+  } catch (error) {
+    console.warn('[setTicketStatus notify]', error?.message || error);
+  }
+
   return serializeTicket(updated);
 }
 

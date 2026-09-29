@@ -97,6 +97,10 @@ export function getMaxUnsafeUser(): Record<string, unknown> | null {
   return null
 }
 
+export function configConsentUrl() {
+  return '/server/consent.pdf'
+}
+
 export const clientApi = {
   loginMax: (initData: string, platform?: string | null, user?: Record<string, unknown> | null) =>
     api<BootstrapPayload & { token: string }>('/server/auth/max', {
@@ -107,6 +111,9 @@ export const clientApi = {
         user: user || undefined,
       }),
     }),
+
+  acceptConsent: () =>
+    api<BootstrapPayload>('/server/me/consent', { method: 'POST' }),
 
   logout: () => api<{ ok: boolean }>('/server/auth/logout', { method: 'POST' }),
 
@@ -162,6 +169,14 @@ export const clientApi = {
     api<{ ticket: Ticket }>(`/server/tickets/${id}`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
+    }),
+
+  getTicket: (id: string) => api<{ ticket: Ticket }>(`/server/tickets/${id}`),
+
+  commentTicket: (id: string, text: string) =>
+    api<{ ticket: Ticket; tickets: Ticket[] }>(`/server/tickets/${id}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
     }),
 
   setWorkStatus: (id: string, status: WorkStatus) =>

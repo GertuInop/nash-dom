@@ -112,12 +112,13 @@ export function MyTicketsScreen() {
         tickets.map((t) => (
           <div key={t.id} className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <strong>№{t.id}</strong>
+              <strong>№{t.publicNumber || t.id}</strong>
               <span className={statusClass(t.status)}>{statusLabel(t.status)}</span>
             </div>
             <h3>{t.title}</h3>
             <p className="muted">{t.description}</p>
             <div className="hint">{t.address}</div>
+            {t.ukComment ? <div className="hint">Ответ УК: {t.ukComment}</div> : null}
           </div>
         ))
       )}

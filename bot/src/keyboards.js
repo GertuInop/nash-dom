@@ -11,7 +11,7 @@ function miniappOpenRow() {
 
 export function consentKeyboard() {
   return inlineKeyboard([
-    [button.link('📄 Согласие на обработку ПДн', config.consentUrl)],
+    [button.link('📄 Пользовательское соглашение', config.consentUrl)],
     [button.callback('✅ Согласен', 'consent:accept')],
     [button.callback('❌ Не согласен', 'consent:decline')],
   ]);

@@ -851,6 +851,13 @@ export async function handleAdminDecision(ctx, companyId, decision) {
     const message = decision === 'approve' ? texts.ukApproved : texts.ukRejected;
     try {
       await ctx.api.sendMessageToUser(result.max_user_id, message, { format: 'markdown' });
+      if (decision === 'approve') {
+        await ctx.api.sendMessageToUser(
+          result.max_user_id,
+          'Главное меню УК. Выберите действие:',
+          { attachments: [ukMenuKeyboard(true)] },
+        );
+      }
     } catch (error) {
       console.error('Не удалось уведомить УК:', error.message);
     }

@@ -32,9 +32,22 @@ function cleanToken(value) {
     .replace(/\r/g, '');
 }
 
+function defaultConsentUrl() {
+  if (process.env.CONSENT_URL) return process.env.CONSENT_URL.trim();
+  if (miniappUrl) {
+    try {
+      return new URL('/server/consent.pdf', miniappUrl).href;
+    } catch {
+      /* fallthrough */
+    }
+  }
+  if (domain && domain !== 'localhost') return `https://${domain}/server/consent.pdf`;
+  return 'http://127.0.0.1/server/consent.pdf';
+}
+
 export const config = {
   botToken: apiOnly ? cleanToken(process.env.BOT_TOKEN || '') : cleanToken(required('BOT_TOKEN')),
-  consentUrl: process.env.CONSENT_URL || 'https://example.com/consent.pdf',
+  consentUrl: defaultConsentUrl(),
   adminUserIds: (process.env.ADMIN_USER_IDS || '')
     .split(',')
     .map((id) => id.trim())

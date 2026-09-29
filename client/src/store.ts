@@ -64,6 +64,8 @@ export interface AppStore {
     description: string
   }) => Promise<{ ok: boolean; error?: string }>
   setTicketStatus: (id: string, status: TicketStatus) => Promise<void>
+  commentTicket: (id: string, text: string) => Promise<string | null>
+  acceptConsent: () => Promise<void>
   setWorkStatus: (id: string, status: WorkStatus) => Promise<void>
   claimParking: (id: string) => Promise<string | null>
   releaseParking: (id: string) => Promise<string | null>
@@ -306,6 +308,26 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({
       tickets: get().tickets.map((t) => (t.id === id ? ticket : t)),
     })
+  },
+
+  commentTicket: async (id, text) => {
+    try {
+      const { ticket, tickets } = await clientApi.commentTicket(id, text)
+      set({
+        tickets: tickets?.length
+          ? tickets
+          : get().tickets.map((t) => (t.id === id ? ticket : t)),
+        toast: { type: 'success', text: 'Комментарий отправлен' },
+      })
+      return null
+    } catch (e) {
+      return apiDownMessage(e)
+    }
+  },
+
+  acceptConsent: async () => {
+    const data = await clientApi.acceptConsent()
+    applyData(set, data)
   },
 
   setWorkStatus: async (id, status) => {

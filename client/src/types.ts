@@ -34,6 +34,7 @@ export interface User {
   blocked?: boolean
   maxUserId?: string
   username?: string
+  consentAccepted?: boolean
 }
 
 export interface House {
@@ -117,7 +118,8 @@ export interface Topic {
 
 export interface Ticket {
   id: string
-  houseId: string
+  publicNumber?: string
+  houseId?: string
   title: string
   description: string
   category: TopicCategory
@@ -127,6 +129,9 @@ export interface Ticket {
   createdAt: string
   authorId: string
   author: string
+  ukComment?: string
+  companyId?: string
+  messages?: { id: string; role: string; body: string; createdAt: string }[]
 }
 
 export interface Toast {

@@ -91,13 +91,6 @@ function Thread({ chatId }: { chatId: string }) {
                   <>
                     <div className="who">{m.senderName}</div>
                     <div>{m.text}</div>
-                    {m.photoLabel ? (
-                      <div className="photo-ph">
-                        Фото: {m.photoLabel}
-                        <br />
-                        URL: {m.photoUrl}
-                      </div>
-                    ) : null}
                     <div className="time">{m.time}</div>
                   </>
                 )}

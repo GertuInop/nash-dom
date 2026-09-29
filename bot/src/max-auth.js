@@ -242,7 +242,7 @@ export async function loginWithMaxUser(maxUser) {
       username: maxUser.username || user.username,
       first_name: maxUser.first_name || user.first_name,
       last_name: maxUser.last_name || user.last_name,
-      ...(isAdmin && user.role !== 'admin' ? { role: 'admin', onboarding_step: 'done', consent_accepted: 1 } : {}),
+      ...(isAdmin && user.role !== 'admin' ? { role: 'admin', onboarding_step: 'done' } : {}),
     });
     user = await findUserById(user.id);
   }
@@ -258,24 +258,12 @@ export async function loginWithMaxUser(maxUser) {
   if (isAdmin && user.role !== 'admin') {
     await updateUser(user.id, {
       role: 'admin',
-      consent_accepted: 1,
-      consent_accepted_at: new Date(),
       onboarding_step: 'done',
     });
     user = await findUserById(user.id);
   }
 
-  if (!user.consent_accepted || (!user.role && !isAdmin)) {
-    await updateUser(user.id, {
-      consent_accepted: 1,
-      consent_accepted_at: new Date(),
-      role: user.role || (isAdmin ? 'admin' : 'resident'),
-      onboarding_step: user.onboarding_step === 'welcome' || !user.onboarding_step ? 'done' : user.onboarding_step,
-      uk_status: user.role === 'uk' ? user.uk_status : 'none',
-    });
-    user = await findUserById(user.id);
-  }
-
+  // Согласие НЕ выдаём автоматически — только через бота или экран в мини-приложении
   const token = await createSession(user.id);
   const data = await bootstrapForUser(user);
   return { token, ...data, maxUser: serializeMaxUser(maxUser) };

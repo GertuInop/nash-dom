@@ -77,7 +77,6 @@ function CreateTopicModal({
           <Field label="Описание">
             <TextArea value={description} onChange={(e) => setDescription(e.target.value)} />
           </Field>
-          <div className="photo-future">📷 Прикрепление фото — функционал в будущем</div>
           {error ? <div className="error">{error}</div> : null}
           <PrimaryButton type="submit">Создать чат</PrimaryButton>
         </form>

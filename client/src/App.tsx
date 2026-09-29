@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
-import { MaxRequiredScreen } from './screens/Auth'
+import { MaxRequiredScreen, ConsentScreen } from './screens/Auth'
 import { AdminPanelScreen } from './screens/Admin'
 import { ChatsScreen } from './screens/Chats'
 import { FeedScreen } from './screens/Feed'
@@ -27,12 +27,14 @@ function ToastHost() {
 function NeedAuth() {
   const user = useUser()
   if (!user) return <MaxRequiredScreen />
+  if (!user.consentAccepted) return <ConsentScreen />
   return <Outlet />
 }
 
 function NeedHouse() {
   const user = useUser()
   const location = useLocation()
+  if (!user?.consentAccepted) return <ConsentScreen />
   if (user?.role === 'admin') return <Outlet />
   if (!user?.houseId && !user?.companyId) return <Navigate to="/select-uk" replace />
   if (!user?.houseId) return <Navigate to="/select-uk" replace />
@@ -45,6 +47,7 @@ function NeedHouse() {
 function HomeRedirect() {
   const user = useUser()
   if (!user) return <MaxRequiredScreen />
+  if (!user.consentAccepted) return <ConsentScreen />
   if (user.role === 'admin') return <Navigate to="/app" replace />
   if (!user.houseId) return <Navigate to="/select-uk" replace />
   if (user.role === 'resident' && !user.skippedAddress && !user.street && !user.flat) {

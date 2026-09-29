@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { config } from '../config.js';
 import {
   addMessage,
+  addTicketComment,
   bootstrapForUser,
   claimParkingSpot,
   createSession,
@@ -14,8 +15,10 @@ import {
   createWebUser,
   deleteSession,
   digitsPhone,
+  findUserById,
   findUserByPhone,
   getSessionUser,
+  getTicketForUser,
   listChats,
   listApprovedCompanies,
   listHouses,
@@ -55,6 +58,8 @@ import {
 } from '../admin-db.js';
 import { notifyMany, notifyMaxUser } from '../notify.js';
 import { texts } from '../texts.js';
+import { updateUser } from '../db.js';
+import { ukMenuKeyboard } from '../keyboards.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const docsDir = path.resolve(__dirname, '../../docs');
@@ -119,6 +124,17 @@ function createServerRouter() {
 
   api.get('/health', (_req, res) => {
     res.json({ ok: true, service: 'nash-dom-api' });
+  });
+
+  api.get('/consent.pdf', (_req, res) => {
+    const file = path.join(docsDir, 'consent.pdf');
+    if (!fs.existsSync(file)) {
+      res.status(404).json({ error: 'Файл соглашения не найден' });
+      return;
+    }
+    res.type('application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="Polzovatelskoe_soglashenie_Nash_Dom.pdf"');
+    res.sendFile(file);
   });
 
   api.get('/status', (_req, res) => {
@@ -327,6 +343,33 @@ function createServerRouter() {
   );
 
   api.get(
+    '/consent-url',
+    (_req, res) => {
+      res.json({ url: config.consentUrl });
+    },
+  );
+
+  api.post(
+    '/me/consent',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const fields = {
+        consent_accepted: 1,
+        consent_accepted_at: new Date(),
+      };
+      if (!req.user.role) {
+        fields.role = 'resident';
+        fields.onboarding_step = 'done';
+      } else if (req.user.onboarding_step === 'consent' || req.user.onboarding_step === 'welcome') {
+        fields.onboarding_step = 'done';
+      }
+      await updateUser(req.user.id, fields);
+      const user = await findUserById(req.user.id);
+      res.json(await bootstrapForUser(user));
+    }),
+  );
+
+  api.get(
     '/houses',
     requireAuth,
     asyncHandler(async (_req, res) => {
@@ -496,6 +539,24 @@ function createServerRouter() {
   );
 
   api.get(
+    '/tickets/:id',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const ticket = await getTicketForUser(req.user, req.params.id);
+      res.json({ ticket });
+    }),
+  );
+
+  api.post(
+    '/tickets/:id/comments',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const ticket = await addTicketComment(req.user, req.params.id, req.body?.text || req.body?.body);
+      res.status(201).json({ ticket, tickets: await listTicketsForUser(req.user) });
+    }),
+  );
+
+  api.get(
     '/parking',
     requireAuth,
     asyncHandler(async (req, res) => {
@@ -618,6 +679,11 @@ function createServerRouter() {
           result.notifyMaxId,
           decision === 'approve' ? texts.ukApproved : texts.ukRejected,
         );
+        if (decision === 'approve') {
+          await notifyMaxUser(result.notifyMaxId, 'Главное меню УК. Выберите действие:', {
+            attachments: [ukMenuKeyboard(true)],
+          });
+        }
       }
       res.json({
         ok: true,

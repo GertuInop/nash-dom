@@ -1,26 +1,24 @@
+import { type FormEvent, useState } from 'react'
 import { ChevronLeft, ShieldAlert } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore, useUser } from '../store'
-import { categoryLabel, EmptyState, houseTitle, statusClass, statusLabel } from '../ui'
+import { categoryLabel, EmptyState, Field, houseTitle, PrimaryButton, statusClass, statusLabel, TextArea } from '../ui'
 
 export function UkPanelScreen() {
   const user = useUser()
   const tickets = useAppStore((s) => s.tickets)
-  const chatsAll = useAppStore((s) => s.chats)
-  const messagesAll = useAppStore((s) => s.messages)
   const houses = useAppStore((s) => s.houses)
   const setTicketStatus = useAppStore((s) => s.setTicketStatus)
-  const chats = chatsAll.filter((c) => c.houseId === user?.houseId && c.type === 'uk')
-  const hidden = messagesAll.filter(
-    (m) => m.hidden && chatsAll.some((c) => c.houseId === user?.houseId && c.id === m.chatId),
-  )
+  const commentTicket = useAppStore((s) => s.commentTicket)
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [comment, setComment] = useState('')
+  const [busy, setBusy] = useState(false)
   const navigate = useNavigate()
   const house = houses.find((h) => h.id === user?.houseId)
 
   const nNew = tickets.filter((t) => t.status === 'new').length
   const nWork = tickets.filter((t) => t.status === 'in_progress').length
   const nDone = tickets.filter((t) => t.status === 'done').length
-  const ukChat = chats[0]
 
   return (
     <div className="pad">
@@ -44,18 +42,18 @@ export function UkPanelScreen() {
           <span className="muted">Выполнено</span>
         </div>
       </div>
-      <h3>Заявки</h3>
+      <h3>Заявки (бот + мини-приложение)</h3>
       {tickets.length === 0 ? (
         <EmptyState
           icon={<ShieldAlert size={36} />}
           title="Заявок нет"
-          text="Жители создают заявки через темы «Авария» и «Качество услуг». Адрес в заявке — только дом."
+          text="Заявки жителей из бота и мини-приложения появятся здесь."
         />
       ) : (
         tickets.map((t) => (
           <div key={t.id} className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-              <strong>№{t.id}</strong>
+              <strong>№{t.publicNumber || t.id}</strong>
               <span className={statusClass(t.status)}>{statusLabel(t.status)}</span>
             </div>
             <h3>{t.title}</h3>
@@ -64,6 +62,7 @@ export function UkPanelScreen() {
             <div className="hint">
               {categoryLabel(t.category)} · {t.author} · {t.createdAt}
             </div>
+            {t.ukComment ? <div className="hint">Комментарий УК: {t.ukComment}</div> : null}
             <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               {t.status === 'new' ? (
                 <button
@@ -83,23 +82,39 @@ export function UkPanelScreen() {
                   Выполнено
                 </button>
               ) : null}
-              {ukChat ? (
-                <button type="button" className="btn btn-ghost" onClick={() => navigate(`/app/chats/${ukChat.id}`)}>
-                  В чат
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setOpenId(openId === t.id ? null : t.id)
+                  setComment('')
+                }}
+              >
+                Комментарий
+              </button>
             </div>
-          </div>
-        ))
-      )}
-      <h3>Модерация</h3>
-      {hidden.length === 0 ? (
-        <p className="muted">Скрытых сообщений нет</p>
-      ) : (
-        hidden.map((m) => (
-          <div key={m.id} className="card">
-            <div className="muted">{m.time}</div>
-            <div>{m.text}</div>
+            {openId === t.id ? (
+              <form
+                style={{ marginTop: 10 }}
+                onSubmit={async (e: FormEvent) => {
+                  e.preventDefault()
+                  setBusy(true)
+                  const err = await commentTicket(t.id, comment)
+                  setBusy(false)
+                  if (!err) {
+                    setComment('')
+                    setOpenId(null)
+                  }
+                }}
+              >
+                <Field label="Сообщение жителю">
+                  <TextArea value={comment} onChange={(e) => setComment(e.target.value)} required />
+                </Field>
+                <PrimaryButton type="submit" disabled={busy || !comment.trim()}>
+                  {busy ? 'Отправка…' : 'Отправить'}
+                </PrimaryButton>
+              </form>
+            ) : null}
           </div>
         ))
       )}

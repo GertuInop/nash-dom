@@ -54,7 +54,6 @@ function CreateTicketModal({ open, onClose }: { open: boolean; onClose: () => vo
           <Field label="Описание">
             <TextArea value={description} onChange={(e) => setDescription(e.target.value)} required />
           </Field>
-          <div className="photo-future">📷 Прикрепление фото — функционал в будущем</div>
           {error ? <div className="error">{error}</div> : null}
           <PrimaryButton type="submit">Отправить заявку</PrimaryButton>
         </form>
